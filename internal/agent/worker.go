@@ -201,7 +201,7 @@ func (a *Agent) evaluateLeaseRequest(remote string, lr *pb.LeaseRequest) (*envel
 	if err != nil {
 		return nil, nil, err
 	}
-	v, err := a.trust.Verify(manEnv)
+	v, err := a.Trust().Verify(manEnv)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -103,77 +103,58 @@ func (a *Agent) Submit(ctx context.Context, req SubmitRequest, progress func(str
 	}
 	inDigest := bundle.Digest(tarData, bundle.ChunkSize)
 
-	if len(req.Peer) == 0 {
-		return nil, errors.New("no worker given: use --peer <multiaddr>/p2p/<peer-id> (DHT discovery arrives in Phase 2)")
-	}
-	worker, err := a.connect(ctx, req.Peer)
-	if err != nil {
-		return nil, err
-	}
-	capDoc, err := a.QueryCapability(ctx, worker)
-	if err != nil {
-		return nil, fmt.Errorf("capability query: %w", err)
-	}
-	if capDoc.Status != ModeAvailable {
-		return nil, fmt.Errorf("worker %s is %s", worker, capDoc.Status)
-	}
-	if _, ok := sv.Manifest.ArtifactFor(capDoc.Platform); !ok {
-		return nil, fmt.Errorf("solver has no artifact for worker platform %s", capDoc.Platform)
-	}
-	if capDoc.CPU.AvailableCores < cj.Resources.CPUCores || capDoc.MemoryBytes < cj.Resources.MemoryBytes {
-		return nil, errors.New("worker does not offer enough CPU or memory for this job")
-	}
-	progress(fmt.Sprintf("Worker %s: %s, %d cores available", shortPeer(worker), capDoc.Platform, capDoc.CPU.AvailableCores))
-
-	// Per-execution recipient key, persisted before it is ever used (§15.3).
-	rk, err := seal.NewRecipientKey()
-	if err != nil {
-		return nil, err
-	}
-	nonce := randomHex(16)
-	execID, err := protocol.ExecID(calcID, a.id.PeerID.String(), worker.String(), nonce)
-	if err != nil {
-		return nil, err
-	}
-	if err := a.saveRecipientKey(execID, rk); err != nil {
-		return nil, err
-	}
-	lr := protocol.LeaseRequest{
-		Schema: protocol.SchemaLeaseRequest, Namespace: a.cfg.Namespace,
-		ExecID: execID, CalcID: calcID, RequesterPeerID: a.id.PeerID.String(), WorkerPeerID: worker.String(),
-		RequesterNonce: nonce, SolverManifestDigest: sv.Digest, Entrypoint: cj.Solver.Entrypoint,
-		Visibility: cj.Metadata.Visibility,
-		Resources: protocol.Resources{
-			CPUMillicores: cj.Resources.CPUCores * 1000, MemoryBytes: cj.Resources.MemoryBytes,
-		},
-		MaxWalltimeSeconds: cj.Resources.WalltimeSeconds,
-		InputBundleDigest:  inDigest, InputBundleSize: int64(len(tarData)),
-		ResultRetentionSeconds: cj.Delivery.ResultRetentionSeconds,
-		ResultRecipientKey:     rk.Public(),
-		IssuedAt:               protocol.Now(time.Now()),
-	}
-	lrEnv, err := envelope.Sign(a.id, protocol.SchemaLeaseRequest, lr)
-	if err != nil {
-		return nil, err
+	var cands []candidate
+	if len(req.Peer) > 0 {
+		worker, err := a.connect(ctx, req.Peer)
+		if err != nil {
+			return nil, err
+		}
+		capDoc, err := a.QueryCapability(ctx, worker)
+		if err != nil {
+			return nil, fmt.Errorf("capability query: %w", err)
+		}
+		if capDoc.Status != ModeAvailable {
+			return nil, fmt.Errorf("worker %s is %s", worker, capDoc.Status)
+		}
+		if _, ok := sv.Manifest.ArtifactFor(capDoc.Platform); !ok {
+			return nil, fmt.Errorf("solver has no artifact for worker platform %s", capDoc.Platform)
+		}
+		if capDoc.CPU.AvailableCores < cj.Resources.CPUCores || capDoc.MemoryBytes < cj.Resources.MemoryBytes {
+			return nil, errors.New("worker does not offer enough CPU or memory for this job")
+		}
+		cands = []candidate{{id: worker, cap: capDoc}}
+	} else {
+		progress("Discovering compatible workers...")
+		found, err := a.findCandidates(ctx, sv, cj.Resources.CPUCores, cj.Resources.MemoryBytes)
+		if err != nil {
+			return nil, err
+		}
+		progress(fmt.Sprintf("%d currently eligible", len(found)))
+		cands = found
 	}
 
-	resultDir := filepath.Join(a.cfg.Requester.ResultsDir, execDirName(execID))
-	exec := &store.Execution{
-		ExecID: execID, Role: store.RoleRequester, State: store.StateRequested, CalcID: calcID,
-		PeerID: worker.String(), PeerAddrs: req.Peer, JobName: cj.Metadata.Name, Mode: cj.Delivery.Mode,
-		ResultDir: resultDir,
-	}
-	if err := a.store.Insert(exec, "lease_request", nil); err != nil {
-		return nil, err
-	}
-	leaseEnv, err := a.negotiateLease(ctx, worker, lrEnv, &lr, sv)
-	if err != nil {
-		msg := err.Error()
-		a.store.Transition(execID, []string{store.StateRequested}, store.StateRejected, store.Update{Error: &msg}, nil)
-		os.Remove(a.recipientKeyPath(execID))
-		return nil, err
+	ls := leaseSpec{cj: cj, calcID: calcID, sv: sv, inDigest: inDigest, inSize: int64(len(tarData))}
+	var execID string
+	var worker peer.ID
+	var leaseEnv *envelope.Envelope
+	for i, cand := range cands {
+		progress(fmt.Sprintf("Worker %s: %s, %d cores available", shortPeer(cand.id), cand.cap.Platform, cand.cap.CPU.AvailableCores))
+		addrs := req.Peer
+		if len(addrs) == 0 {
+			addrs = a.peerAddrs(cand.id)
+		}
+		execID, leaseEnv, err = a.leaseWith(ctx, cand.id, addrs, ls)
+		if err == nil {
+			worker = cand.id
+			break
+		}
+		if i == len(cands)-1 {
+			return nil, err
+		}
+		progress(fmt.Sprintf("Peer %s declined (%v); trying the next candidate", shortPeer(cand.id), err))
 	}
 	leaseID := protocol.LeaseID(leaseEnv)
+	resultDir := filepath.Join(a.cfg.Requester.ResultsDir, execDirName(execID))
 	progress("Lease accepted by peer " + shortPeer(worker))
 	progress("Execution: " + execID)
 
@@ -195,6 +176,67 @@ func (a *Agent) Submit(ctx context.Context, req SubmitRequest, progress func(str
 	progress("Upload done. Worker is running the job.")
 	a.nudge()
 	return &SubmitResult{ExecID: execID, CalcID: calcID, LeaseID: leaseID, Worker: worker.String(), Mode: cj.Delivery.Mode, ResultDir: resultDir}, nil
+}
+
+// leaseSpec is the job-specific part of a lease request.
+type leaseSpec struct {
+	cj       *job.Canonical
+	calcID   string
+	sv       *solver.Verified
+	inDigest string
+	inSize   int64
+}
+
+// leaseWith creates an execution for one worker and negotiates its lease.
+func (a *Agent) leaseWith(ctx context.Context, worker peer.ID, addrs []string, ls leaseSpec) (string, *envelope.Envelope, error) {
+	cj := ls.cj
+	// Per-execution recipient key, persisted before it is ever used (§15.3).
+	rk, err := seal.NewRecipientKey()
+	if err != nil {
+		return "", nil, err
+	}
+	nonce := randomHex(16)
+	execID, err := protocol.ExecID(ls.calcID, a.id.PeerID.String(), worker.String(), nonce)
+	if err != nil {
+		return "", nil, err
+	}
+	if err := a.saveRecipientKey(execID, rk); err != nil {
+		return "", nil, err
+	}
+	lr := protocol.LeaseRequest{
+		Schema: protocol.SchemaLeaseRequest, Namespace: a.cfg.Namespace,
+		ExecID: execID, CalcID: ls.calcID, RequesterPeerID: a.id.PeerID.String(), WorkerPeerID: worker.String(),
+		RequesterNonce: nonce, SolverManifestDigest: ls.sv.Digest, Entrypoint: cj.Solver.Entrypoint,
+		Visibility: cj.Metadata.Visibility,
+		Resources: protocol.Resources{
+			CPUMillicores: cj.Resources.CPUCores * 1000, MemoryBytes: cj.Resources.MemoryBytes,
+		},
+		MaxWalltimeSeconds: cj.Resources.WalltimeSeconds,
+		InputBundleDigest:  ls.inDigest, InputBundleSize: ls.inSize,
+		ResultRetentionSeconds: cj.Delivery.ResultRetentionSeconds,
+		ResultRecipientKey:     rk.Public(),
+		IssuedAt:               protocol.Now(time.Now()),
+	}
+	lrEnv, err := envelope.Sign(a.id, protocol.SchemaLeaseRequest, lr)
+	if err != nil {
+		return "", nil, err
+	}
+	exec := &store.Execution{
+		ExecID: execID, Role: store.RoleRequester, State: store.StateRequested, CalcID: ls.calcID,
+		PeerID: worker.String(), PeerAddrs: addrs, JobName: cj.Metadata.Name, Mode: cj.Delivery.Mode,
+		ResultDir: filepath.Join(a.cfg.Requester.ResultsDir, execDirName(execID)),
+	}
+	if err := a.store.Insert(exec, "lease_request", nil); err != nil {
+		return "", nil, err
+	}
+	leaseEnv, err := a.negotiateLease(ctx, worker, lrEnv, &lr, ls.sv)
+	if err != nil {
+		msg := err.Error()
+		a.store.Transition(execID, []string{store.StateRequested}, store.StateRejected, store.Update{Error: &msg}, nil)
+		os.Remove(a.recipientKeyPath(execID))
+		return "", nil, err
+	}
+	return execID, leaseEnv, nil
 }
 
 func (a *Agent) negotiateLease(ctx context.Context, worker peer.ID, lrEnv *envelope.Envelope, lr *protocol.LeaseRequest, sv *solver.Verified) (*envelope.Envelope, error) {
@@ -380,7 +422,7 @@ func (a *Agent) fetchLoop(ctx context.Context) {
 				fctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 				defer cancel()
 				if _, err := a.Fetch(fctx, id); err != nil {
-					a.log.Debug("fetch", "exec", id, "err", err)
+					a.log.Info("fetch attempt failed (will retry)", "exec", id, "err", err)
 				}
 			}(e.ExecID)
 		}
@@ -644,7 +686,7 @@ func (a *Agent) finalize(ctx context.Context, execID string, comp *protocol.Comp
 			verdict = protocol.VerdictMalformedOutput
 		} else {
 			wasm, _ := parser.Builtin(parserDigest)
-			parsed, err := parser.Run(ctx, wasm, filepath.Join(outDir, "output"))
+			parsed, err := parser.RunCached(ctx, wasm, filepath.Join(outDir, "output"), filepath.Join(a.paths.Home, "cache", "wazero"))
 			if err != nil {
 				return fmt.Errorf("parse: %w", err)
 			}

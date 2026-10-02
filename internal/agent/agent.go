@@ -15,6 +15,7 @@ import (
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 
@@ -107,6 +108,10 @@ type Agent struct {
 
 	fetchInterval time.Duration
 
+	disc       *discovery
+	provideNow chan struct{}
+	stop       context.CancelFunc
+
 	mu       sync.Mutex
 	mode     string
 	reserved int // offered leases awaiting countersignature
@@ -155,6 +160,7 @@ func Open(o Options) (*Agent, error) {
 		cancels:       map[string]context.CancelFunc{},
 		fetching:      map[string]bool{},
 		wake:          make(chan struct{}, 1),
+		provideNow:    make(chan struct{}, 1),
 	}
 	if o.FetchInterval > 0 {
 		a.fetchInterval = o.FetchInterval
@@ -189,8 +195,11 @@ func (a *Agent) Addrs() []string {
 	return out
 }
 
-// Start brings up networking, protocol handlers and background loops.
-func (a *Agent) Start(ctx context.Context) error {
+// Start brings up networking, protocol handlers and background loops. They
+// stop when ctx is done or Close is called.
+func (a *Agent) Start(parent context.Context) error {
+	ctx, cancel := context.WithCancel(parent)
+	a.stop = cancel
 	if a.rt == nil {
 		rt, err := sandbox.Detect(a.cfg.Runtime.Engine)
 		if err != nil {
@@ -211,10 +220,23 @@ func (a *Agent) Start(ctx context.Context) error {
 		}
 	}
 
-	h, err := libp2p.New(
+	// NAT traversal (§9.3): direct, then hole punching (DCUtR), then relay.
+	opts := []libp2p.Option{
 		libp2p.Identity(a.id.PrivKey),
 		libp2p.ListenAddrStrings(a.cfg.Listen...),
-	)
+		libp2p.NATPortMap(),
+		libp2p.EnableHolePunching(),
+	}
+	if relays, err := parseAddrInfos(a.cfg.Network.StaticRelays); err != nil {
+		return fmt.Errorf("network.staticRelays: %w", err)
+	} else if len(relays) > 0 {
+		opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(relays))
+	}
+	if a.cfg.Network.RelayService {
+		// Bounded reservations (§9.4); bulk transfers should use direct paths.
+		opts = append(opts, libp2p.EnableRelayService(), libp2p.EnableNATService())
+	}
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return fmt.Errorf("agent: libp2p: %w", err)
 	}
@@ -227,6 +249,9 @@ func (a *Agent) Start(ctx context.Context) error {
 	if err := a.recoverWorker(); err != nil {
 		return err
 	}
+	if err := a.startDiscovery(ctx); err != nil {
+		return err
+	}
 	a.wg.Add(2)
 	go a.sweepLoop(ctx)
 	go a.fetchLoop(ctx)
@@ -236,14 +261,20 @@ func (a *Agent) Start(ctx context.Context) error {
 
 // Close stops networking and waits for background work.
 func (a *Agent) Close() error {
+	if a.stop != nil {
+		a.stop()
+	}
 	a.mu.Lock()
 	for _, c := range a.cancels {
 		c()
 	}
 	a.mu.Unlock()
 	var err error
+	if a.disc != nil {
+		err = a.disc.dht.Close()
+	}
 	if a.host != nil {
-		err = a.host.Close()
+		err = errors.Join(err, a.host.Close())
 	}
 	a.wg.Wait()
 	return errors.Join(err, a.store.Close())
@@ -278,6 +309,12 @@ func (a *Agent) SetMode(mode string) error {
 	if err := a.store.SetKV("mode", mode); err != nil {
 		return err
 	}
+	if mode == ModeAvailable {
+		select {
+		case a.provideNow <- struct{}{}:
+		default:
+		}
+	}
 	return a.store.AppendEvent("mode", map[string]any{"mode": mode})
 }
 
@@ -307,7 +344,23 @@ func (a *Agent) connect(ctx context.Context, addrs []string) (peer.ID, error) {
 	}
 	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if err := a.host.Connect(cctx, merged); err != nil {
+	err := a.host.Connect(cctx, merged)
+	if err != nil && cctx.Err() == nil {
+		// One retry covers transient dial races (e.g. simultaneous open).
+		time.Sleep(time.Duration(200+time.Now().UnixNano()%300) * time.Millisecond)
+		if a.host.Network().Connectedness(merged.ID) == network.Connected {
+			err = nil
+		} else {
+			err = a.host.Connect(network.WithForceDirectDial(cctx, "retry after dial race"), merged)
+		}
+	}
+	if err != nil && a.disc != nil {
+		// Addresses may be stale (roaming laptop, new NAT mapping): ask the DHT.
+		if info, ferr := a.disc.dht.FindPeer(cctx, merged.ID); ferr == nil {
+			err = a.host.Connect(cctx, info)
+		}
+	}
+	if err != nil {
 		return "", fmt.Errorf("connect %s: %w", merged.ID, err)
 	}
 	return merged.ID, nil
@@ -332,7 +385,7 @@ func (a *Agent) solverCatalog() (map[string]*solver.Verified, error) {
 			a.log.Warn("skipping unreadable solver manifest", "file", e.Name(), "err", err)
 			continue
 		}
-		v, err := a.trust.Verify(env)
+		v, err := a.Trust().Verify(env)
 		if err != nil {
 			a.log.Warn("skipping untrusted solver manifest", "file", e.Name(), "err", err)
 			continue
@@ -344,7 +397,7 @@ func (a *Agent) solverCatalog() (map[string]*solver.Verified, error) {
 
 // AddSolver verifies a signed manifest and installs it in the local catalog.
 func (a *Agent) AddSolver(env *envelope.Envelope) (*solver.Verified, error) {
-	return InstallSolver(a.paths, a.trust, env)
+	return InstallSolver(a.paths, a.Trust(), env)
 }
 
 // InstallSolver verifies and stores a manifest without a running agent.
@@ -362,6 +415,20 @@ func InstallSolver(p Paths, trust solver.Policy, env *envelope.Envelope) (*solve
 	}
 	name := v.Manifest.Name + "-" + v.Manifest.Version + "-" + v.Digest[7:19] + ".json"
 	return v, os.WriteFile(filepath.Join(p.Solvers(), name), raw, 0o644)
+}
+
+// Trust returns the solver trust policy.
+func (a *Agent) Trust() solver.Policy {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.trust
+}
+
+// SetTrust replaces the solver trust policy.
+func (a *Agent) SetTrust(p solver.Policy) {
+	a.mu.Lock()
+	a.trust = p
+	a.mu.Unlock()
 }
 
 // nudge wakes the fetch loop.

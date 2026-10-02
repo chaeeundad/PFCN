@@ -56,11 +56,25 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 
 // Run executes wasm with outputDir mounted read-only at /in and returns stdout.
 func Run(ctx context.Context, wasm []byte, outputDir string) ([]byte, error) {
+	return RunCached(ctx, wasm, outputDir, "")
+}
+
+// RunCached is Run with an on-disk compilation cache in cacheDir (empty =
+// none). Compiling a Go WASI module takes seconds; the cache makes repeat
+// parses fast. Cached code is keyed by module content.
+func RunCached(ctx context.Context, wasm []byte, outputDir, cacheDir string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	rt := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().
+	rcfg := wazero.NewRuntimeConfig().
 		WithMemoryLimitPages(maxMemoryPages).
-		WithCloseOnContextDone(true))
+		WithCloseOnContextDone(true)
+	if cacheDir != "" {
+		if cache, err := wazero.NewCompilationCacheWithDir(cacheDir); err == nil {
+			defer cache.Close(context.Background())
+			rcfg = rcfg.WithCompilationCache(cache)
+		}
+	}
+	rt := wazero.NewRuntimeWithConfig(ctx, rcfg)
 	defer rt.Close(context.Background())
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 

@@ -44,7 +44,7 @@ func submitCmd() *cobra.Command {
 			return waitJob(c, res.ExecID)
 		},
 	}
-	cmd.Flags().StringArrayVar(&peers, "peer", nil, "worker multiaddr ending in /p2p/<peer-id> (repeatable)")
+	cmd.Flags().StringArrayVar(&peers, "peer", nil, "worker multiaddr ending in /p2p/<peer-id> (repeatable); omit to discover workers via DHT/mDNS")
 	cmd.Flags().BoolVar(&detach, "detach", false, "return after the input upload; fetch the result later")
 	cmd.Flags().StringVar(&retention, "retention", "", "requested result retention, e.g. 24h")
 	return cmd

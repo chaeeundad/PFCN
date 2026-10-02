@@ -26,12 +26,28 @@ const ProjectSolverSigner = "12D3KooWNmqy7RJXuA8VKQDgfcWhhAtiVPpwXGRQA3K2VvaDRKe
 type Config struct {
 	Namespace string    `yaml:"namespace"`
 	Listen    []string  `yaml:"listen"`
+	Network   Network   `yaml:"network"`
 	Resources Resources `yaml:"resources"`
 	Jobs      Jobs      `yaml:"jobs"`
 	Trust     Trust     `yaml:"trust"`
 	Solvers   Solvers   `yaml:"solvers"`
 	Runtime   Runtime   `yaml:"runtime"`
 	Requester Requester `yaml:"requester"`
+}
+
+// Network configures discovery and NAT traversal (§9).
+type Network struct {
+	// Bootstrap peers (multiaddrs ending in /p2p/<id>). Community-operated
+	// bootstrap peers are equally valid (§9.1).
+	Bootstrap []string `yaml:"bootstrap"`
+	// DHTMode is auto, server or client. Bootstrap and relay nodes use server.
+	DHTMode string `yaml:"dhtMode"`
+	// RelayService offers bounded Circuit Relay v2 reservations to others (§9.4).
+	RelayService bool `yaml:"relayService"`
+	// StaticRelays are relays used for AutoRelay when this node is not publicly reachable.
+	StaticRelays []string `yaml:"staticRelays"`
+	// MDNS discovers peers on the local network.
+	MDNS bool `yaml:"mdns"`
 }
 
 type Resources struct {
@@ -79,6 +95,11 @@ type Policy struct {
 	AcceptVisibility          []string
 }
 
+// DefaultBootstrap lists project-operated bootstrap peers. It is empty until
+// bootstrap1/2.pumat.org are deployed (see docs/DEVLOG.md); add community or
+// institutional bootstrap peers in config.yaml meanwhile.
+var DefaultBootstrap = []string{}
+
 // Default returns a configuration for a machine with the given resources:
 // half the cores and a quarter of memory are offered by default.
 func Default(totalCores int, totalMemory int64) *Config {
@@ -86,7 +107,8 @@ func Default(totalCores int, totalMemory int64) *Config {
 	memGiB := max(totalMemory/(4<<30), 1)
 	return &Config{
 		Namespace: DefaultNamespace,
-		Listen:    []string{"/ip4/0.0.0.0/udp/4001/quic-v1", "/ip4/0.0.0.0/tcp/4001"},
+		Listen:    []string{"/ip4/0.0.0.0/udp/4001/quic-v1", "/ip4/0.0.0.0/tcp/4001", "/ip6/::/udp/4001/quic-v1", "/ip6/::/tcp/4001"},
+		Network:   Network{Bootstrap: DefaultBootstrap, DHTMode: "auto", MDNS: true},
 		Resources: Resources{CPU: cpu, Memory: fmt.Sprintf("%dGiB", memGiB), Disk: "50GiB"},
 		Jobs: Jobs{
 			MaxWalltime: "6h", MaxConcurrent: 1, MaxResultRetention: "72h",
@@ -165,6 +187,11 @@ func (c *Config) Policy() (*Policy, error) {
 	}
 	if p.MaxResultRetentionSeconds, err = job.ParseDuration(c.Jobs.MaxResultRetention); err != nil {
 		return nil, fmt.Errorf("jobs.maxResultRetention: %w", err)
+	}
+	switch c.Network.DHTMode {
+	case "", "auto", "server", "client":
+	default:
+		return nil, fmt.Errorf("network.dhtMode must be auto, server or client")
 	}
 	if c.Runtime.Engine != "auto" && c.Runtime.Engine != "podman" && c.Runtime.Engine != "docker" {
 		return nil, fmt.Errorf("runtime.engine must be auto, podman or docker")

@@ -116,6 +116,7 @@ func (a *Agent) ServeAPI(ctx context.Context) error {
 	mux.HandleFunc("GET /v1/solvers", a.apiSolvers)
 	mux.HandleFunc("GET /v1/ledger/verify", a.apiLedger)
 	mux.HandleFunc("GET /v1/capability", a.apiCapability)
+	mux.HandleFunc("GET /v1/network", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, a.Network()) })
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()

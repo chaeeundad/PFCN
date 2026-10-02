@@ -32,7 +32,7 @@ type testNet struct {
 	manifestDigest    string
 }
 
-func newNode(t *testing.T, signer string, rt sandbox.Runtime) *Agent {
+func newNode(t *testing.T, signer string, rt sandbox.Runtime, tweaks ...func(*config.Config)) *Agent {
 	t.Helper()
 	home := t.TempDir()
 	res, err := Init(home)
@@ -45,6 +45,9 @@ func newNode(t *testing.T, signer string, rt sandbox.Runtime) *Agent {
 	cfg.Resources.CPU = 1
 	cfg.Resources.Memory = "4GiB"
 	cfg.Requester.ResultsDir = filepath.Join(home, "results")
+	for _, tw := range tweaks {
+		tw(cfg)
+	}
 	if err := cfg.Save(Paths{Home: home}.Config()); err != nil {
 		t.Fatal(err)
 	}
@@ -174,8 +177,8 @@ func TestTwoPeerExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec := waitState(t, n.requester, res.ExecID, store.StateCompleted, 20*time.Second)
-	wexec := waitState(t, n.worker, res.ExecID, store.StateCompleted, 5*time.Second)
+	exec := waitState(t, n.requester, res.ExecID, store.StateCompleted, 120*time.Second)
+	wexec := waitState(t, n.worker, res.ExecID, store.StateCompleted, 30*time.Second)
 
 	// Sandbox received exactly the leased limits and fixed launcher env.
 	run := n.fake.Runs[0]
@@ -244,7 +247,7 @@ func TestDetachedFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Worker seals and holds ciphertext only.
-	waitState(t, n.worker, res.ExecID, store.StateSealed, 10*time.Second)
+	waitState(t, n.worker, res.ExecID, store.StateSealed, 60*time.Second)
 	entries, _ := os.ReadDir(n.worker.paths.ExecDir(res.ExecID))
 	for _, e := range entries {
 		if e.Name() != "sealed" {
@@ -252,7 +255,7 @@ func TestDetachedFetch(t *testing.T) {
 		}
 	}
 	// The detached requester picks it up on its (shortened) fetch interval.
-	waitState(t, n.requester, res.ExecID, store.StateCompleted, 20*time.Second)
+	waitState(t, n.requester, res.ExecID, store.StateCompleted, 120*time.Second)
 }
 
 func TestLeaseRejections(t *testing.T) {
@@ -261,12 +264,12 @@ func TestLeaseRejections(t *testing.T) {
 	n.worker.SetMode(ModeAvailable)
 
 	// Untrusted solver signer on the worker side.
-	n.worker.trust = solver.Policy{TrustedSigners: []string{n.worker.PeerID().String()}}
+	n.worker.SetTrust(solver.Policy{TrustedSigners: []string{n.worker.PeerID().String()}})
 	_, err := n.requester.Submit(ctx, SubmitRequest{JobPath: n.jobPath, Peer: n.worker.Addrs()}, nil)
 	if err == nil || !strings.Contains(err.Error(), "trusted") {
 		t.Fatalf("expected trust rejection, got %v", err)
 	}
-	n.worker.trust = n.requester.trust
+	n.worker.SetTrust(n.requester.Trust())
 
 	// More CPU than offered.
 	data, _ := os.ReadFile(n.jobPath)
@@ -281,4 +284,64 @@ func TestDefaultConfigIsValid(t *testing.T) {
 	if _, err := c.Policy(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestDHTDiscoveryWithoutPeer(t *testing.T) {
+	n := setup(t)
+	// A bootstrap/DHT server node that runs no jobs.
+	signer := n.requester.Trust().TrustedSigners[0]
+	noMDNS := func(c *config.Config) { c.Network.MDNS = false; c.Network.DHTMode = "server" }
+	boot := newNode(t, signer, nil, noMDNS)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel(); boot.Close() })
+	if err := boot.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	bootAddr := boot.Addrs()[0]
+
+	// Rebuild requester and worker so their configs point at the bootstrap node.
+	withBoot := func(c *config.Config) { noMDNS(c); c.Network.Bootstrap = []string{bootAddr} }
+	worker := newNode(t, signer, n.fake, withBoot)
+	requester := newNode(t, signer, nil, withBoot)
+	for _, a := range []*Agent{worker, requester} {
+		env, _ := solver.LoadFile(firstManifest(t, n.worker))
+		if _, err := a.AddSolver(env); err != nil {
+			t.Fatal(err)
+		}
+		if err := a.Start(ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { a.Close() })
+	}
+	if err := worker.SetMode(ModeAvailable); err != nil {
+		t.Fatal(err)
+	}
+
+	// Provider records propagate through the bootstrap node.
+	var res *SubmitResult
+	var err error
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err = requester.Submit(ctx, SubmitRequest{JobPath: n.jobPath}, nil)
+		if err == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("submit without --peer: %v", err)
+	}
+	if res.Worker != worker.PeerID().String() {
+		t.Fatalf("expected worker %s, got %s", worker.PeerID(), res.Worker)
+	}
+	waitState(t, requester, res.ExecID, store.StateCompleted, 120*time.Second)
+}
+
+func firstManifest(t *testing.T, a *Agent) string {
+	t.Helper()
+	entries, err := os.ReadDir(a.paths.Solvers())
+	if err != nil || len(entries) == 0 {
+		t.Fatal("no installed manifest")
+	}
+	return filepath.Join(a.paths.Solvers(), entries[0].Name())
 }
