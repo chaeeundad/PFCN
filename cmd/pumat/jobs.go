@@ -135,6 +135,7 @@ func jobCmd() *cobra.Command {
 	}
 	list.Flags().BoolVar(&pending, "pending", false, "only executions that are not finished")
 	cmd.AddCommand(list)
+	cmd.AddCommand(publishCmd())
 	cmd.AddCommand(&cobra.Command{
 		Use:   "status <exec-id>",
 		Short: "Show the last known state of an execution",

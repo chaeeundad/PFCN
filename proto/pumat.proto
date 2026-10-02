@@ -44,6 +44,9 @@ message Frame {
     ChunkRequest chunk_request = 14;
     Ack ack = 15;
     AckResult ack_result = 16;
+    RecordRequest record_request = 17;
+    SignedEnvelope record_manifest = 18;    // pumat.record.v1, publisher-signed
+    SignedEnvelope announcement = 19;       // pumat.publication.v1
   }
 }
 
@@ -77,6 +80,7 @@ message InputHave {
 message Chunk {
   uint32 index = 1;
   bytes data = 2;
+  bool last = 3;  // set on the final chunk of a record file stream
 }
 
 message InputDone {
@@ -113,3 +117,13 @@ message Ack {
 message AckResult {
   bool ok = 1;
 }
+
+// /pumat/record/1.0.0 (§24): path "" returns the manifest; otherwise the
+// file is streamed as Chunk frames ending with last=true.
+message RecordRequest {
+  string record_id = 1;
+  string path = 2;
+}
+
+// /pumat/announce/1.0.0 (§45): direct push of an announcement to an indexer,
+// answered with AckResult. GossipSub carries the same envelope.

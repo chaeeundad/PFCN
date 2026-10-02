@@ -221,7 +221,7 @@ type candidate struct {
 // findCandidates discovers workers for a solver and checks each one's signed
 // capability (§14.3). Results are ordered: direct connections first, then by
 // available cores.
-func (a *Agent) findCandidates(ctx context.Context, sv *solver.Verified, cores, memory int64) ([]candidate, error) {
+func (a *Agent) findCandidates(ctx context.Context, sv *solver.Verified, cores, memory int64, exclude map[peer.ID]bool) ([]candidate, error) {
 	ids := map[peer.ID]bool{}
 	if a.disc != nil {
 		a.disc.mu.Lock()
@@ -240,6 +240,9 @@ func (a *Agent) findCandidates(ctx context.Context, sv *solver.Verified, cores, 
 		cancel()
 	}
 	delete(ids, a.id.PeerID)
+	for id := range exclude {
+		delete(ids, id)
+	}
 	if len(ids) == 0 {
 		return nil, errors.New("no workers found for this solver (check network.bootstrap, or pass --peer)")
 	}

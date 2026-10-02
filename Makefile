@@ -18,6 +18,7 @@ parser:
 		-o internal/parser/artifacts/qe-parser.wasm ./cmd/pumat-qe-parser
 	@shasum -a 256 internal/parser/artifacts/qe-parser.wasm 2>/dev/null || sha256sum internal/parser/artifacts/qe-parser.wasm
 
+proto: export PATH := $(PATH):$(shell $(GO) env GOPATH)/bin
 proto:
 	protoc -I proto --go_out=. --go_opt=module=github.com/chaeeundad/PFCN proto/pumat.proto
 

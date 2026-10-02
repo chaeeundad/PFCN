@@ -66,8 +66,17 @@ func (a *Agent) Submit(ctx context.Context, req SubmitRequest, progress func(str
 	if err != nil {
 		return nil, err
 	}
-	cj := &prep.Canonical
 	progress("Validating job specification... OK")
+	return a.submitPrepared(ctx, prep, data, req, nil, nil, progress)
+}
+
+// submitPrepared leases a worker for a validated job and uploads its input.
+// origin is the job source kept in the local result record; exclude lists
+// workers that must not run it (independent reproduction).
+// onLeased runs after the lease is persisted and before the input upload.
+func (a *Agent) submitPrepared(ctx context.Context, prep *job.Prepared, origin []byte, req SubmitRequest, exclude map[peer.ID]bool, onLeased func(execID string) error, progress func(string)) (*SubmitResult, error) {
+	cj := &prep.Canonical
+	data := origin
 
 	sv, err := a.manifestFor(cj.Solver.ManifestDigest)
 	if err != nil {
@@ -125,10 +134,13 @@ func (a *Agent) Submit(ctx context.Context, req SubmitRequest, progress func(str
 		if capDoc.CPU.AvailableCores < cj.Resources.CPUCores || capDoc.MemoryBytes < cj.Resources.MemoryBytes {
 			return nil, errors.New("worker does not offer enough CPU or memory for this job")
 		}
+		if exclude[worker] {
+			return nil, errors.New("this worker produced the original result; reproduction needs a different worker")
+		}
 		cands = []candidate{{id: worker, cap: capDoc}}
 	} else {
 		progress("Discovering compatible workers...")
-		found, err := a.findCandidates(ctx, sv, cj.Resources.CPUCores, cj.Resources.MemoryBytes)
+		found, err := a.findCandidates(ctx, sv, cj.Resources.CPUCores, cj.Resources.MemoryBytes, exclude)
 		if err != nil {
 			return nil, err
 		}
@@ -160,6 +172,11 @@ func (a *Agent) Submit(ctx context.Context, req SubmitRequest, progress func(str
 	resultDir := filepath.Join(a.cfg.Requester.ResultsDir, execDirName(execID))
 	progress("Lease accepted by peer " + shortPeer(worker))
 	progress("Execution: " + execID)
+	if onLeased != nil {
+		if err := onLeased(execID); err != nil {
+			return nil, err
+		}
+	}
 
 	// Keep the submitted input locally as part of the result record (§22.2).
 	if err := writeInputRecord(resultDir, cjBytes, data, prep.Files); err != nil {
@@ -697,6 +714,7 @@ func (a *Agent) finalize(ctx context.Context, execID string, comp *protocol.Comp
 			if err := writeFile(filepath.Join(outDir, "parsed", "result.json"), parsed); err != nil {
 				return err
 			}
+			a.compareReproduction(execID, outDir, parsedDigest, parsed)
 			prov := filepath.Join(outDir, "provenance")
 			os.MkdirAll(prov, 0o755)
 			os.Rename(filepath.Join(outDir, "execution-environment.json"), filepath.Join(prov, "execution-environment.json"))

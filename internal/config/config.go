@@ -24,15 +24,29 @@ const ProjectSolverSigner = "12D3KooWNmqy7RJXuA8VKQDgfcWhhAtiVPpwXGRQA3K2VvaDRKe
 
 // Config is the YAML node configuration.
 type Config struct {
-	Namespace string    `yaml:"namespace"`
-	Listen    []string  `yaml:"listen"`
-	Network   Network   `yaml:"network"`
-	Resources Resources `yaml:"resources"`
-	Jobs      Jobs      `yaml:"jobs"`
-	Trust     Trust     `yaml:"trust"`
-	Solvers   Solvers   `yaml:"solvers"`
-	Runtime   Runtime   `yaml:"runtime"`
-	Requester Requester `yaml:"requester"`
+	Namespace   string      `yaml:"namespace"`
+	Listen      []string    `yaml:"listen"`
+	Network     Network     `yaml:"network"`
+	Resources   Resources   `yaml:"resources"`
+	Jobs        Jobs        `yaml:"jobs"`
+	Trust       Trust       `yaml:"trust"`
+	Solvers     Solvers     `yaml:"solvers"`
+	Runtime     Runtime     `yaml:"runtime"`
+	Requester   Requester   `yaml:"requester"`
+	Publication Publication `yaml:"publication"`
+	Indexer     Indexer     `yaml:"indexer"`
+}
+
+// Publication configures where public record announcements are pushed (§45).
+type Publication struct {
+	// Indexers receive announcements directly (in addition to GossipSub).
+	Indexers []string `yaml:"indexers"`
+}
+
+// Indexer runs the optional explorer/indexer inside the agent (§25).
+type Indexer struct {
+	Enabled bool   `yaml:"enabled"`
+	HTTP    string `yaml:"http"` // listen address, e.g. 127.0.0.1:8080
 }
 
 // Network configures discovery and NAT traversal (§9).

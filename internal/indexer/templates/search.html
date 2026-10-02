@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pumat Explorer</title>{{template "style"}}</head><body><main>
+<header><h1><a href="/">Pumat Explorer</a></h1><span class="tag">Public scientific records. This index is disposable; records are signed and content-addressed.</span></header>
+<form method="get" action="/">
+<input name="formula" placeholder="formula (e.g. Si)" value="{{.Q.Get "formula"}}">
+<input name="element" placeholder="element (e.g. Ni)" value="{{.Q.Get "element"}}">
+<select name="calculation"><option value="">any calculation</option>{{$c := .Q.Get "calculation"}}<option {{if eq $c "scf"}}selected{{end}}>scf</option><option {{if eq $c "relax"}}selected{{end}}>relax</option><option {{if eq $c "vc-relax"}}selected{{end}}>vc-relax</option></select>
+<select name="converged"><option value="">converged or not</option><option value="true" {{if eq (.Q.Get "converged") "true"}}selected{{end}}>converged only</option></select>
+<button type="submit">Search</button></form>
+<div class="table">{{if .Rows}}<table><thead><tr><th>Formula</th><th>Calculation</th><th>Solver</th><th>Energy (eV)</th><th>Converged</th><th>Reproducibility</th><th>Created</th></tr></thead><tbody>
+{{range .Rows}}<tr><td><a href="/record/{{.RecordID}}">{{if .Formula}}{{.Formula}}{{else}}?{{end}}</a></td><td>{{.Calculation}}</td><td>{{.Solver}} {{.Version}}</td><td class="num">{{energy .EnergyEV}}</td><td>{{if .Converged}}<span class="ok">yes</span>{{else}}<span class="warn">no</span>{{end}}</td><td>{{if .Reproduces}}reproduction: {{status .Comparison}}{{else}}original{{end}}</td><td class="mono">{{.CreatedAt}}</td></tr>{{end}}
+</tbody></table>{{else}}<div class="empty">No public records match.</div>{{end}}</div>
+<footer>REST: <code>/api/records?formula=Si&amp;converged=true</code> · Pumat is an open scientific infrastructure project.</footer>
+</main></body></html>

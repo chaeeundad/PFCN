@@ -1,0 +1,13 @@
+{{define "style"}}<style>
+:root{--bg:#fbfaf7;--fg:#1d1c1a;--muted:#6b6862;--line:#e3e0d9;--card:#ffffff;--accent:#2f6f5e;--warn:#9a5b13;--bad:#a23a2a}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--muted:#a19e96;--line:#34322e;--card:#1f1e1b;--accent:#7fc4ae;--warn:#e0a85c;--bad:#e88b7b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1040px;margin:0 auto;padding:24px 16px 64px}header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:22px;margin:0}h1 a{color:inherit;text-decoration:none}.tag{color:var(--muted);font-size:13px}h2{font-size:15px;margin:28px 0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+a{color:var(--accent)}code,.mono{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}
+form{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}input,select,button{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}button{background:var(--accent);color:var(--bg);border-color:var(--accent);cursor:pointer}
+.table{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--card)}table{border-collapse:collapse;width:100%;min-width:640px}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:12px;color:var(--muted);font-weight:600}tr:last-child td{border-bottom:0}td.num{text-align:right;font-variant-numeric:tabular-nums}
+dl{display:grid;grid-template-columns:minmax(120px,200px) 1fr;gap:6px 16px;margin:0;padding:14px 16px;border:1px solid var(--line);border-radius:8px;background:var(--card)}dt{color:var(--muted)}dd{margin:0;min-width:0}
+.ok{color:var(--accent)}.warn{color:var(--warn)}.bad{color:var(--bad)}.empty{color:var(--muted);padding:24px;text-align:center}footer{margin-top:40px;color:var(--muted);font-size:13px}
+@media (max-width:560px){dl{grid-template-columns:1fr}dt{margin-top:6px}}
+</style>{{end}}

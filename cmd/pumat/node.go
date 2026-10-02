@@ -75,6 +75,12 @@ func agentCmd() *cobra.Command {
 				a.Close()
 				return err
 			}
+			if a.Config().Indexer.Enabled {
+				if err := startIndexer(ctx, a); err != nil {
+					a.Close()
+					return err
+				}
+			}
 			apiErr := make(chan error, 1)
 			go func() { apiErr <- a.ServeAPI(ctx) }()
 			select {

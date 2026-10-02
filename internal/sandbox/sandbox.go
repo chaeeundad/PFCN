@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -28,14 +29,18 @@ type Spec struct {
 	PIDs        int64
 	Walltime    time.Duration
 	Env         map[string]string // only PUMAT_* launcher variables
+	// DiskLimitBytes bounds scratch+output usage; 0 disables the watchdog.
+	// Bind mounts cannot carry a size limit portably, so usage is polled.
+	DiskLimitBytes int64
 }
 
 // Result is the outcome of a run.
 type Result struct {
-	ExitCode    int
-	TimedOut    bool
-	OOMKilled   bool
-	WallSeconds int64
+	ExitCode     int
+	TimedOut     bool
+	OOMKilled    bool
+	DiskExceeded bool
+	WallSeconds  int64
 }
 
 // Runtime executes sandboxed runs.
@@ -174,8 +179,20 @@ func (c *Container) Run(ctx context.Context, s Spec) (Result, error) {
 
 	waitCtx, cancel := context.WithTimeout(ctx, s.Walltime)
 	defer cancel()
+	diskHit := make(chan struct{})
+	if s.DiskLimitBytes > 0 {
+		go watchDisk(waitCtx, []string{s.ScratchDir, s.OutputDir}, s.DiskLimitBytes, func() {
+			close(diskHit)
+			c.cmd(context.Background(), "kill", s.Name).Run()
+		})
+	}
 	out, werr := c.output(waitCtx, "wait", s.Name)
 	res := Result{}
+	select {
+	case <-diskHit:
+		res.DiskExceeded = true
+	default:
+	}
 	if werr != nil {
 		c.cmd(context.Background(), "kill", s.Name).Run()
 		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
@@ -197,6 +214,39 @@ func (c *Container) Run(ctx context.Context, s Spec) (Result, error) {
 		res.OOMKilled = oom == "true"
 	}
 	return res, nil
+}
+
+// watchDisk polls the total size of dirs and calls exceeded once over limit.
+func watchDisk(ctx context.Context, dirs []string, limit int64, exceeded func()) {
+	t := time.NewTicker(10 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if DirSize(dirs...) > limit {
+			exceeded()
+			return
+		}
+	}
+}
+
+// DirSize returns the total size of regular files under dirs.
+func DirSize(dirs ...string) int64 {
+	var total int64
+	for _, d := range dirs {
+		filepath.WalkDir(d, func(_ string, e os.DirEntry, err error) error {
+			if err == nil && e.Type().IsRegular() {
+				if fi, err := e.Info(); err == nil {
+					total += fi.Size()
+				}
+			}
+			return nil
+		})
+	}
+	return total
 }
 
 func firstLine(s string) string {

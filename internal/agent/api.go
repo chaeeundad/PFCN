@@ -126,6 +126,31 @@ func (a *Agent) ServeAPI(ctx context.Context) error {
 		writeJSON(w, 200, rl)
 	})
 	mux.HandleFunc("GET /v1/network", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, a.Network()) })
+	mux.HandleFunc("POST /v1/jobs/{id}/publish", func(w http.ResponseWriter, r *http.Request) {
+		res, err := a.Publish(r.Context(), r.PathValue("id"))
+		if err != nil {
+			writeErr(w, 422, err)
+			return
+		}
+		writeJSON(w, 200, res)
+	})
+	mux.HandleFunc("POST /v1/reproduce", a.apiReproduce)
+	mux.HandleFunc("POST /v1/records/{id}/fetch", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Minute)
+		defer cancel()
+		m, err := a.FetchRecord(ctx, r.PathValue("id"))
+		if err != nil {
+			writeErr(w, 404, err)
+			return
+		}
+		dir, _ := a.RecordDir(r.PathValue("id"))
+		writeJSON(w, 200, map[string]any{"manifest": m, "dir": dir})
+	})
+	a.mu.Lock()
+	for _, reg := range a.extraAPI {
+		reg(mux)
+	}
+	a.mu.Unlock()
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
@@ -172,6 +197,38 @@ func (a *Agent) apiMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"mode": a.Mode()})
+}
+
+// RegisterAPI adds handlers to the local API (call before ServeAPI).
+func (a *Agent) RegisterAPI(fn func(*http.ServeMux)) {
+	a.mu.Lock()
+	a.extraAPI = append(a.extraAPI, fn)
+	a.mu.Unlock()
+}
+
+func (a *Agent) apiReproduce(w http.ResponseWriter, r *http.Request) {
+	var req ReproduceRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	enc := json.NewEncoder(w)
+	flush := func() {
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}
+	res, err := a.Reproduce(r.Context(), req, func(s string) {
+		enc.Encode(map[string]string{"progress": s})
+		flush()
+	})
+	if err != nil {
+		enc.Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	enc.Encode(map[string]any{"result": res})
+	flush()
 }
 
 // apiSubmit streams progress as NDJSON: {"progress": "..."} lines, then a

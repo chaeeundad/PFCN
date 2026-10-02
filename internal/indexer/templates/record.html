@@ -1,0 +1,29 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{if .M.Summary.Formula}}{{.M.Summary.Formula}}{{else}}Record{{end}} · Pumat Explorer</title>{{template "style"}}</head><body><main>
+<header><h1><a href="/">Pumat Explorer</a></h1><span class="tag mono">{{.D.Row.RecordID}}</span></header>
+<h2>Calculation</h2><dl>
+<dt>Material</dt><dd>{{if .M.Summary.Formula}}{{.M.Summary.Formula}}{{else}}—{{end}} ({{.M.Summary.NAtoms}} atoms)</dd>
+<dt>Solver</dt><dd>{{.M.Solver}} {{.M.SolverVersion}}</dd>
+<dt>Calculation</dt><dd>{{.M.Summary.Calculation}}</dd>
+<dt>Status</dt><dd>{{if .M.Summary.Converged}}<span class="ok">converged</span>{{else}}<span class="warn">not converged</span>{{end}}</dd>
+<dt>Cutoff / k-points</dt><dd>{{.M.Summary.Ecutwfc}} Ry · {{.M.Summary.Kpoints}}</dd>
+<dt>License</dt><dd>{{.M.License}}</dd></dl>
+<h2>Results</h2><dl>
+<dt>Total energy</dt><dd class="mono">{{if .M.Summary.EnergyEV}}{{.M.Summary.EnergyEV}} eV{{else}}—{{end}}</dd>
+<dt>Fermi / HOMO</dt><dd class="mono">{{if .M.Summary.FermiEV}}{{.M.Summary.FermiEV}} eV{{else}}—{{end}}</dd></dl>
+<h2>Reproducibility</h2><dl>
+<dt>Executions of this calculation</dt><dd>{{.D.Reproducibility.Executions}}</dd>
+<dt>Agreement</dt><dd>{{$s := .D.Reproducibility.Status}}<span class="{{if eq $s "DIVERGENT"}}bad{{else if eq $s "UNVERIFIED"}}warn{{else}}ok{{end}}">{{$s}}</span> <span class="tag">(agreement between workers is not proof of scientific correctness)</span></dd>
+{{if .M.Comparison}}<dt>This record reproduces</dt><dd><a class="mono" href="/record/{{.M.Comparison.Against}}">{{short .M.Comparison.Against}}</a>: {{.M.Comparison.Status}}, ΔE = {{.M.Comparison.EnergyDiffEV}} eV (tolerance {{.M.Comparison.EnergyTolEV}})</dd>{{end}}
+<dt>Calculation ID</dt><dd class="mono">{{.M.CalcID}}</dd>
+<dt>Solver manifest</dt><dd class="mono">{{.M.SolverManifestDigest}}</dd>
+<dt>Parser</dt><dd class="mono">{{.M.ParserDigest}}</dd>
+<dt>Receipt</dt><dd class="mono">{{.M.ReceiptID}}</dd>
+<dt>Publisher / worker</dt><dd class="mono">{{peer .M.PublisherPeerID}} / {{peer .M.WorkerPeerID}}</dd>
+<dt>Created</dt><dd class="mono">{{.M.CreatedAt}}</dd></dl>
+<h2>Downloads</h2><div class="table"><table><thead><tr><th>File</th><th>SHA-256</th><th>Size</th></tr></thead><tbody>
+<tr><td><a href="/record/{{.D.Row.RecordID}}/files/manifest.json">manifest.json</a></td><td class="mono">signed publication manifest</td><td></td></tr>
+{{range .D.Files}}<tr><td><a href="/record/{{$.D.Row.RecordID}}/files/{{.Path}}">{{.Path}}</a></td><td class="mono">{{short .Digest}}…</td><td class="num">{{.Size}}</td></tr>{{end}}
+</tbody></table></div>
+<footer>Verify offline: download the bundle and run <code>pumat record verify &lt;dir&gt;</code>.</footer>
+</main></body></html>

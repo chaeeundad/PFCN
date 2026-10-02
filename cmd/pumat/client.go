@@ -85,7 +85,12 @@ func (c *client) post(path string, in, out any) error {
 // submit streams NDJSON progress lines.
 func (c *client) submit(req agent.SubmitRequest, progress func(string)) (*agent.SubmitResult, error) {
 	b, _ := json.Marshal(req)
-	r, err := http.NewRequest("POST", "http://agent/v1/submit", bytes.NewReader(b))
+	return c.stream("/v1/submit", b, progress)
+}
+
+// stream posts body and reads NDJSON progress until a result or error.
+func (c *client) stream(path string, b []byte, progress func(string)) (*agent.SubmitResult, error) {
+	r, err := http.NewRequest("POST", "http://agent"+path, bytes.NewReader(b))
 	if err != nil {
 		return nil, err
 	}

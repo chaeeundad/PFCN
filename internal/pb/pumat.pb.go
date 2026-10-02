@@ -219,6 +219,9 @@ type Frame struct {
 	//	*Frame_ChunkRequest
 	//	*Frame_Ack
 	//	*Frame_AckResult
+	//	*Frame_RecordRequest
+	//	*Frame_RecordManifest
+	//	*Frame_Announcement
 	Body          isFrame_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -405,6 +408,33 @@ func (x *Frame) GetAckResult() *AckResult {
 	return nil
 }
 
+func (x *Frame) GetRecordRequest() *RecordRequest {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_RecordRequest); ok {
+			return x.RecordRequest
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetRecordManifest() *SignedEnvelope {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_RecordManifest); ok {
+			return x.RecordManifest
+		}
+	}
+	return nil
+}
+
+func (x *Frame) GetAnnouncement() *SignedEnvelope {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_Announcement); ok {
+			return x.Announcement
+		}
+	}
+	return nil
+}
+
 type isFrame_Body interface {
 	isFrame_Body()
 }
@@ -473,6 +503,18 @@ type Frame_AckResult struct {
 	AckResult *AckResult `protobuf:"bytes,16,opt,name=ack_result,json=ackResult,proto3,oneof"`
 }
 
+type Frame_RecordRequest struct {
+	RecordRequest *RecordRequest `protobuf:"bytes,17,opt,name=record_request,json=recordRequest,proto3,oneof"`
+}
+
+type Frame_RecordManifest struct {
+	RecordManifest *SignedEnvelope `protobuf:"bytes,18,opt,name=record_manifest,json=recordManifest,proto3,oneof"` // pumat.record.v1, publisher-signed
+}
+
+type Frame_Announcement struct {
+	Announcement *SignedEnvelope `protobuf:"bytes,19,opt,name=announcement,proto3,oneof"` // pumat.publication.v1
+}
+
 func (*Frame_Error) isFrame_Body() {}
 
 func (*Frame_CapabilityRequest) isFrame_Body() {}
@@ -504,6 +546,12 @@ func (*Frame_ChunkRequest) isFrame_Body() {}
 func (*Frame_Ack) isFrame_Body() {}
 
 func (*Frame_AckResult) isFrame_Body() {}
+
+func (*Frame_RecordRequest) isFrame_Body() {}
+
+func (*Frame_RecordManifest) isFrame_Body() {}
+
+func (*Frame_Announcement) isFrame_Body() {}
 
 // /pumat/capability/1.0.0
 type CapabilityRequest struct {
@@ -764,6 +812,7 @@ type Chunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Index         uint32                 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
 	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Last          bool                   `protobuf:"varint,3,opt,name=last,proto3" json:"last,omitempty"` // set on the final chunk of a record file stream
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -810,6 +859,13 @@ func (x *Chunk) GetData() []byte {
 		return x.Data
 	}
 	return nil
+}
+
+func (x *Chunk) GetLast() bool {
+	if x != nil {
+		return x.Last
+	}
+	return false
 }
 
 type InputDone struct {
@@ -1157,6 +1213,60 @@ func (x *AckResult) GetOk() bool {
 	return false
 }
 
+// /pumat/record/1.0.0 (§24): path "" returns the manifest; otherwise the
+// file is streamed as Chunk frames ending with last=true.
+type RecordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RecordId      string                 `protobuf:"bytes,1,opt,name=record_id,json=recordId,proto3" json:"record_id,omitempty"`
+	Path          string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordRequest) Reset() {
+	*x = RecordRequest{}
+	mi := &file_pumat_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordRequest) ProtoMessage() {}
+
+func (x *RecordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pumat_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordRequest.ProtoReflect.Descriptor instead.
+func (*RecordRequest) Descriptor() ([]byte, []int) {
+	return file_pumat_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RecordRequest) GetRecordId() string {
+	if x != nil {
+		return x.RecordId
+	}
+	return ""
+}
+
+func (x *RecordRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
 var File_pumat_proto protoreflect.FileDescriptor
 
 const file_pumat_proto_rawDesc = "" +
@@ -1174,7 +1284,7 @@ const file_pumat_proto_rawDesc = "" +
 	"\x03sig\x18\x03 \x01(\fR\x03sig\"5\n" +
 	"\x05Error\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\x9e\a\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xe5\b\n" +
 	"\x05Frame\x12'\n" +
 	"\x05error\x18\x01 \x01(\v2\x0f.pumat.v1.ErrorH\x00R\x05error\x12L\n" +
 	"\x12capability_request\x18\x02 \x01(\v2\x1b.pumat.v1.CapabilityRequestH\x00R\x11capabilityRequest\x12:\n" +
@@ -1199,7 +1309,10 @@ const file_pumat_proto_rawDesc = "" +
 	"\rchunk_request\x18\x0e \x01(\v2\x16.pumat.v1.ChunkRequestH\x00R\fchunkRequest\x12!\n" +
 	"\x03ack\x18\x0f \x01(\v2\r.pumat.v1.AckH\x00R\x03ack\x124\n" +
 	"\n" +
-	"ack_result\x18\x10 \x01(\v2\x13.pumat.v1.AckResultH\x00R\tackResultB\x06\n" +
+	"ack_result\x18\x10 \x01(\v2\x13.pumat.v1.AckResultH\x00R\tackResult\x12@\n" +
+	"\x0erecord_request\x18\x11 \x01(\v2\x17.pumat.v1.RecordRequestH\x00R\rrecordRequest\x12C\n" +
+	"\x0frecord_manifest\x18\x12 \x01(\v2\x18.pumat.v1.SignedEnvelopeH\x00R\x0erecordManifest\x12>\n" +
+	"\fannouncement\x18\x13 \x01(\v2\x18.pumat.v1.SignedEnvelopeH\x00R\fannouncementB\x06\n" +
 	"\x04body\"1\n" +
 	"\x11CapabilityRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"\x85\x01\n" +
@@ -1216,10 +1329,11 @@ const file_pumat_proto_rawDesc = "" +
 	"chunk_size\x18\x03 \x01(\rR\tchunkSize\x12!\n" +
 	"\fchunk_hashes\x18\x04 \x03(\fR\vchunkHashes\"%\n" +
 	"\tInputHave\x12\x18\n" +
-	"\amissing\x18\x01 \x03(\rR\amissing\"1\n" +
+	"\amissing\x18\x01 \x03(\rR\amissing\"E\n" +
 	"\x05Chunk\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\rR\x05index\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data\"\x1b\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\x12\x12\n" +
+	"\x04last\x18\x03 \x01(\bR\x04last\"\x1b\n" +
 	"\tInputDone\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"(\n" +
 	"\rStatusRequest\x12\x17\n" +
@@ -1247,7 +1361,10 @@ const file_pumat_proto_rawDesc = "" +
 	"acceptance\x18\x01 \x01(\v2\x18.pumat.v1.SignedEnvelopeR\n" +
 	"acceptance\"\x1b\n" +
 	"\tAckResult\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02okB(Z&github.com/chaeeundad/PFCN/internal/pbb\x06proto3"
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"@\n" +
+	"\rRecordRequest\x12\x1b\n" +
+	"\trecord_id\x18\x01 \x01(\tR\brecordId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04pathB(Z&github.com/chaeeundad/PFCN/internal/pbb\x06proto3"
 
 var (
 	file_pumat_proto_rawDescOnce sync.Once
@@ -1261,7 +1378,7 @@ func file_pumat_proto_rawDescGZIP() []byte {
 	return file_pumat_proto_rawDescData
 }
 
-var file_pumat_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_pumat_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_pumat_proto_goTypes = []any{
 	(*SignedEnvelope)(nil),    // 0: pumat.v1.SignedEnvelope
 	(*Signature)(nil),         // 1: pumat.v1.Signature
@@ -1279,6 +1396,7 @@ var file_pumat_proto_goTypes = []any{
 	(*ChunkRequest)(nil),      // 13: pumat.v1.ChunkRequest
 	(*Ack)(nil),               // 14: pumat.v1.Ack
 	(*AckResult)(nil),         // 15: pumat.v1.AckResult
+	(*RecordRequest)(nil),     // 16: pumat.v1.RecordRequest
 }
 var file_pumat_proto_depIdxs = []int32{
 	1,  // 0: pumat.v1.SignedEnvelope.signatures:type_name -> pumat.v1.Signature
@@ -1298,15 +1416,18 @@ var file_pumat_proto_depIdxs = []int32{
 	13, // 14: pumat.v1.Frame.chunk_request:type_name -> pumat.v1.ChunkRequest
 	14, // 15: pumat.v1.Frame.ack:type_name -> pumat.v1.Ack
 	15, // 16: pumat.v1.Frame.ack_result:type_name -> pumat.v1.AckResult
-	0,  // 17: pumat.v1.LeaseRequest.request:type_name -> pumat.v1.SignedEnvelope
-	0,  // 18: pumat.v1.LeaseRequest.solver_manifest:type_name -> pumat.v1.SignedEnvelope
-	0,  // 19: pumat.v1.Status.completion:type_name -> pumat.v1.SignedEnvelope
-	0,  // 20: pumat.v1.Ack.acceptance:type_name -> pumat.v1.SignedEnvelope
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	16, // 17: pumat.v1.Frame.record_request:type_name -> pumat.v1.RecordRequest
+	0,  // 18: pumat.v1.Frame.record_manifest:type_name -> pumat.v1.SignedEnvelope
+	0,  // 19: pumat.v1.Frame.announcement:type_name -> pumat.v1.SignedEnvelope
+	0,  // 20: pumat.v1.LeaseRequest.request:type_name -> pumat.v1.SignedEnvelope
+	0,  // 21: pumat.v1.LeaseRequest.solver_manifest:type_name -> pumat.v1.SignedEnvelope
+	0,  // 22: pumat.v1.Status.completion:type_name -> pumat.v1.SignedEnvelope
+	0,  // 23: pumat.v1.Ack.acceptance:type_name -> pumat.v1.SignedEnvelope
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_pumat_proto_init() }
@@ -1331,6 +1452,9 @@ func file_pumat_proto_init() {
 		(*Frame_ChunkRequest)(nil),
 		(*Frame_Ack)(nil),
 		(*Frame_AckResult)(nil),
+		(*Frame_RecordRequest)(nil),
+		(*Frame_RecordManifest)(nil),
+		(*Frame_Announcement)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1338,7 +1462,7 @@ func file_pumat_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_pumat_proto_rawDesc), len(file_pumat_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

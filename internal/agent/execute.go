@@ -158,8 +158,9 @@ func (a *Agent) runExecution(ctx context.Context, execID string) error {
 		Name: "pumat-" + execDirName(execID)[:16], Image: image, Entrypoint: lease.Entrypoint,
 		InputDir: sub("in"), PseudoDir: sub("pseudo"), ScratchDir: sub("scratch"), OutputDir: sub("out"),
 		CPUs: cores, MemoryBytes: lease.Resources.MemoryBytes,
-		PIDs:     min(ep.MaxProcesses, maxProcsCeiling),
-		Walltime: time.Duration(lease.MaxWalltimeSeconds) * time.Second,
+		PIDs:           min(ep.MaxProcesses, maxProcsCeiling),
+		Walltime:       time.Duration(lease.MaxWalltimeSeconds) * time.Second,
+		DiskLimitBytes: a.policy.DiskBytes,
 		Env: map[string]string{
 			"PUMAT_NPROCS": strconv.FormatInt(cores, 10),
 			"PUMAT_POOLS":  strconv.FormatInt(qe.EstimatePools(cj), 10),
@@ -174,7 +175,7 @@ func (a *Agent) runExecution(ctx context.Context, execID string) error {
 	switch {
 	case res.TimedOut:
 		outcome = protocol.OutcomeWalltimeExceeded
-	case res.OOMKilled:
+	case res.OOMKilled, res.DiskExceeded:
 		outcome = protocol.OutcomeResourceExceeded
 	case res.ExitCode != 0:
 		outcome = protocol.OutcomeSolverFailed
@@ -201,6 +202,7 @@ func (a *Agent) runExecution(ctx context.Context, execID string) error {
 		"exit_code":       res.ExitCode,
 		"timed_out":       res.TimedOut,
 		"oom_killed":      res.OOMKilled,
+		"disk_exceeded":   res.DiskExceeded,
 		"wall_seconds":    res.WallSeconds,
 		"outcome":         outcome,
 		"started_at":      protocol.Now(started),

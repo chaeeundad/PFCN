@@ -8,12 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -25,6 +27,7 @@ import (
 	"github.com/chaeeundad/PFCN/internal/identity"
 	"github.com/chaeeundad/PFCN/internal/job"
 	"github.com/chaeeundad/PFCN/internal/protocol"
+	"github.com/chaeeundad/PFCN/internal/record"
 	"github.com/chaeeundad/PFCN/internal/sandbox"
 	"github.com/chaeeundad/PFCN/internal/solver"
 	"github.com/chaeeundad/PFCN/internal/solver/qe"
@@ -112,6 +115,9 @@ type Agent struct {
 	provideNow  chan struct{}
 	stop        context.CancelFunc
 	revocations *solver.RevocationList
+	topic       *pubsub.Topic
+	onAnnounce  func(*record.Announcement, *envelope.Envelope, peer.ID)
+	extraAPI    []func(*http.ServeMux)
 
 	mu       sync.Mutex
 	mode     string
@@ -180,6 +186,12 @@ func Open(o Options) (*Agent, error) {
 	a.mode = mode
 	return a, nil
 }
+
+// Config returns the loaded configuration.
+func (a *Agent) Config() *config.Config { return a.cfg }
+
+// Home returns the Pumat home directory.
+func (a *Agent) Home() string { return a.paths.Home }
 
 // PeerID returns the node's peer ID.
 func (a *Agent) PeerID() peer.ID { return a.id.PeerID }
@@ -254,6 +266,9 @@ func (a *Agent) Start(parent context.Context) error {
 		return err
 	}
 	if err := a.startDiscovery(ctx); err != nil {
+		return err
+	}
+	if err := a.startRecords(ctx); err != nil {
 		return err
 	}
 	a.wg.Add(3)

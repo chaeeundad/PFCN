@@ -43,7 +43,7 @@ func main() {
 		modeCmd("off", "Stop accepting new work (running jobs finish)", "paused"),
 		modeCmd("pause", "Alias of off", "paused"),
 		submitCmd(), jobCmd(), receiptsCmd(), receiptCmd(), ledgerCmd(),
-		solverCmd(), resourcesCmd(), doctorCmd(), networkCmd(), peersCmd(), revocationsCmd(),
+		solverCmd(), resourcesCmd(), doctorCmd(), networkCmd(), peersCmd(), revocationsCmd(), reproduceCmd(), recordCmd(),
 	)
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)

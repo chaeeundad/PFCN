@@ -1,6 +1,9 @@
 package sandbox
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,5 +37,22 @@ func TestArgsAreHardened(t *testing.T) {
 func TestNormalizePlatform(t *testing.T) {
 	if NormalizePlatform("linux/aarch64") != "linux/arm64" || NormalizePlatform("linux/x86_64") != "linux/amd64" {
 		t.Fatal("platform normalization")
+	}
+}
+
+func TestWatchDisk(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "big"), make([]byte, 2048), 0o600)
+	if DirSize(dir) != 2048 {
+		t.Fatal("DirSize")
+	}
+	hit := make(chan struct{})
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	go watchDisk(ctx, []string{dir}, 1024, func() { close(hit) })
+	select {
+	case <-hit:
+	case <-ctx.Done():
+		t.Fatal("watchdog did not fire")
 	}
 }
