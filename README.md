@@ -46,14 +46,16 @@ What works today:
   at [pfcn.pumat.org](https://pfcn.pumat.org)
 
 Not yet: workspace encryption at rest, Sigstore verification of solver
-manifests, a second solver, Windows, institutional federations. GPU support
-is out of scope for now. See [docs/DEVLOG.md](docs/DEVLOG.md).
+manifests, a second solver, a native Windows build, institutional
+federations. Windows users run the Linux build in WSL2 (documented, not yet
+verified on Windows hardware). GPU support is out of scope for now. See [docs/DEVLOG.md](docs/DEVLOG.md).
 
 ## Getting started
 
 Full guide (Korean): [docs/QUICKSTART.md](docs/QUICKSTART.md).
 
-Install a signed release (Linux or macOS, amd64/arm64). The installer
+Install a signed release (Linux or macOS, amd64/arm64; on Windows, inside
+WSL2 Ubuntu as described in the quick start). The installer
 verifies the checksum and, when `cosign` is installed, the Sigstore signature.
 It never turns resource sharing on.
 

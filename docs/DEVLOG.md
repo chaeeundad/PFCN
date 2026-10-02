@@ -18,7 +18,7 @@
 | Phase 6 GPU + 두 번째 솔버 | 보류 | **GPU는 범위에서 제외** (2026-10-02 결정). 두 번째 솔버는 이후 검토 |
 | Phase 7 공정성·평판 | 일부 | 로컬 평판 차원, 신규 요청자 제한, 신뢰도 기반 후보 정렬 |
 | Phase 8 기관 연합 | 미착수 | 네임스페이스·멤버십·기관 증명 |
-| Windows | 미지원 | 클라이언트 네이티브 지원과 WSL2 워커 안내는 제안만 된 상태 |
+| Windows | WSL2 안내 | WSL2 Ubuntu에서 Linux 바이너리 사용 (요청자·워커). Windows 실기기 미검증. 네이티브 빌드는 미착수 |
 
 v0.1 완료 정의(§65) 대비: 1~13 모두 실측으로 충족 (서명 릴리스 설치, 인터넷 너머 탐색, 격리 실행, 평문 미보관, 영수증, 공개 레코드, 다른 워커 재현). 남은 것은 독립 관리자가 운영하는 여러 Linux 머신으로 넓혀 보는 일(U3).
 
@@ -122,6 +122,7 @@ macOS 개발 머신에서 실제 QE 컨테이너로 두 노드 E2E를 통과함 
 |---|---|---|
 | U6 | 공개 부트스트랩/relay 노드 | 1호기 운영 중 (Lightsail 싱가포르, `pfcn.pumat.org`). 2호기는 다른 리전에 추가 예정 |
 | U8 | Route 53에 `_dnsaddr.pfcn.pumat.org` TXT 레코드 추가 | 부트스트랩 목록을 DNS로 관리 | 해결 (2026-10-02) |
+| U9 | Windows PC에서 WSL2 안내대로 실행해 보기 | Windows 경로는 문서만 있고 실기기 검증 전 | 대기 |
 
 ---
 
@@ -278,3 +279,15 @@ A(요청자+익스플로러), B·C(워커):
   - GossipSub 공지만으로 서버 인덱서가 받아 검증·미러링·색인 (`publication.indexers` 설정 없이)
   - https://pfcn.pumat.org/record/pumat:record:blake3:1bee32ae81029565100423937a55d7788fc8b8467b0b9af02a60d0dc65f71b49
   - 서버가 레코드를 미러링하므로 게시한 노드가 꺼져도 계속 다운로드 가능
+
+---
+
+## 2026-10-02 — Windows 사용 안내 (WSL2)
+
+- 사용자 요청으로 Windows 사용법을 문서화. 네이티브 Windows 빌드는 만들지 않고 **WSL2 Ubuntu에서 Linux 바이너리를 그대로 쓰는 방법**으로 안내
+  - 이유: 키 파일 권한 검사가 Unix 기준이고, 솔버가 Linux 컨테이너여서 워커는 어차피 Linux 환경이 필요
+- QUICKSTART에 "Windows에서 쓰기 (WSL2)" 절 추가
+  - `wsl --install -d Ubuntu-24.04`, Windows 11의 `networkingMode=mirrored` 권장 (기본 NAT 모드는 hole punching에 불리)
+  - 워커는 WSL 안 rootless Podman 권장 (Docker Desktop WSL 통합도 가능하나 root 데몬 경고)
+  - WSL은 터미널을 모두 닫으면 멈추므로 기여 중에는 터미널 유지, `.wslconfig`로 CPU·메모리 상한
+- **검증 상태**: 프로젝트에서 Windows 실기기로 아직 확인하지 않음 (문서에 명시). 사용자나 동료의 Windows PC에서 확인 필요 (U9)

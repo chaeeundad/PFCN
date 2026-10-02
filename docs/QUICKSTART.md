@@ -9,10 +9,10 @@ Pumat 노드를 설치해서 **계산 자원을 기여**하거나 **계산을 �
 
 | 역할 | 하는 일 | 필요한 것 |
 |---|---|---|
-| **워커** (기여자) | 남는 CPU로 다른 사람의 계산을 실행 | Linux + Docker 또는 Podman (macOS는 Docker Desktop·OrbStack으로도 동작) |
-| **요청자** | 계산을 맡기고 결과를 받음 | Linux 또는 macOS (컨테이너 불필요) |
+| **워커** (기여자) | 남는 CPU로 다른 사람의 계산을 실행 | Linux + Docker 또는 Podman (macOS는 Docker Desktop·OrbStack, Windows는 WSL2) |
+| **요청자** | 계산을 맡기고 결과를 받음 | Linux, macOS, Windows(WSL2) (컨테이너 불필요) |
 
-Windows는 아직 지원하지 않습니다.
+Windows 사용자는 먼저 [Windows에서 쓰기 (WSL2)](#windows에서-쓰기-wsl2)를 따라 Ubuntu를 준비한 뒤, 아래 단계를 Ubuntu 터미널에서 진행하세요.
 
 한 컴퓨터가 두 역할을 함께 해도 됩니다.
 
@@ -222,6 +222,91 @@ indexer:
 
 운영 방법은 [`deploy/bootstrap/README.md`](https://github.com/chaeeundad/PFCN/blob/main/deploy/bootstrap/README.md)에 있습니다. 같은 바이너리를 `dhtMode: server`, `relayService: true`, `reachability: public`으로 실행하면 됩니다.
 
+## Windows에서 쓰기 (WSL2)
+
+네이티브 Windows용 pumat은 아직 없습니다. 대신 Windows에 내장된 Linux 환경 **WSL2**에서 Linux 버전을 그대로 씁니다. 요청자와 워커 모두 이 방법으로 쓸 수 있습니다.
+
+> 이 방법은 Linux 버전과 같은 바이너리를 쓰지만, **프로젝트에서 Windows 실기기로는 아직 직접 검증하지 않았습니다.** 문제가 생기면 [이슈](https://github.com/chaeeundad/PFCN/issues)로 알려 주세요.
+
+필요한 것: Windows 10 22H2 또는 Windows 11. 워커로 쓰려면 Windows 11을 권장합니다.
+
+### 1) WSL2와 Ubuntu 설치
+
+**관리자 권한 PowerShell**에서 실행하고, 끝나면 재부팅합니다.
+
+```powershell
+wsl --install -d Ubuntu-24.04
+```
+
+재부팅 후 시작 메뉴의 **Ubuntu 24.04**를 열고 사용자 이름과 비밀번호를 정합니다. 이후 명령은 모두 이 Ubuntu 터미널에서 실행합니다.
+
+### 2) 네트워크를 미러 모드로 (Windows 11 권장)
+
+WSL2는 기본적으로 Windows 안에 NAT를 한 겹 더 둡니다. 그러면 다른 노드와의 직접 연결(hole punching)이 잘 안 될 수 있습니다. Windows 11에서는 WSL이 Windows와 같은 네트워크를 쓰도록 바꿔 주세요.
+
+PowerShell에서 실행합니다.
+
+```powershell
+notepad "$env:USERPROFILE\.wslconfig"
+```
+
+열린 파일에 다음을 넣고 저장합니다.
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+```powershell
+wsl --shutdown
+```
+
+Ubuntu 터미널을 다시 열면 적용됩니다. Windows 10에서는 이 설정을 쓸 수 없지만, 요청자로는 대부분 그대로 동작합니다.
+
+### 3) pumat 설치와 초기화
+
+Ubuntu 터미널에서 [1. 설치](#1-설치)와 [2. 노드 초기화](#2-노드-초기화-워커요청자-공통)를 그대로 따릅니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chaeeundad/PFCN/main/scripts/install.sh | sh
+mkdir -p ~/pumat-start && cd ~/pumat-start
+R=https://raw.githubusercontent.com/chaeeundad/PFCN/main
+curl -fsSLO $R/solvers/quantum-espresso/manifest.signed.json
+pumat init
+pumat solver add manifest.signed.json
+pumat agent > ~/.pumat/agent.log 2>&1 &
+pumat network diagnose      # Bootstrap: ... 1 connected 이면 정상
+```
+
+요청자는 이것으로 준비가 끝났습니다. [4. 요청자](#4-요청자-첫-계산-맡기기)로 넘어가면 됩니다.
+
+### 4) 워커로 쓰려면: 컨테이너 엔진
+
+WSL 안에 rootless Podman을 설치하는 방법이 가장 간단합니다.
+
+```bash
+sudo apt-get update && sudo apt-get install -y podman
+pumat doctor --image ghcr.io/chaeeundad/pumat-quantum-espresso@sha256:7ea3d7fb93f904b435071ceb6e3797a4cfc57ec0e848cf124ad43e6c28d18d54
+```
+
+ARM 기반 Windows PC는 digest를 `sha256:34a423156bc78375f2c2f6cab6a97eb66133be7be2da9ea98815c361a9b984da`로 바꿉니다.
+
+이미 **Docker Desktop**을 쓰고 있다면 Settings → Resources → WSL Integration에서 Ubuntu-24.04를 켜도 됩니다. Docker Desktop은 데몬이 root로 돌기 때문에 `doctor`가 경고합니다. 가능하면 Podman을 권장합니다.
+
+`sandbox smoke test ... network denied`가 나오면 에이전트를 다시 시작하고 공유를 켭니다.
+
+```bash
+pkill -f "pumat agent"; pumat agent > ~/.pumat/agent.log 2>&1 &
+pumat on
+```
+
+### Windows에서 주의할 점
+
+- **켜 두기**: WSL은 Ubuntu 터미널을 모두 닫으면 잠시 뒤 멈춥니다. 워커로 기여하는 동안에는 Ubuntu 터미널을 하나 열어 두세요. Windows가 절전에 들어가도 멈춥니다.
+- **자원 한도**: WSL이 쓰는 CPU·메모리 상한은 `.wslconfig`의 `processors`, `memory`로 정합니다(예: `memory=16GB`). pumat에 제공하는 양(`pumat resources set`)은 이 범위 안에서 정하세요.
+- **같은 LAN 자동 탐색(mDNS)**: WSL에서는 잘 안 될 수 있습니다. 공개 부트스트랩을 통한 탐색은 그대로 동작합니다.
+- **파일 위치**: 작업 파일은 WSL 쪽 폴더(예: `~/pumat-start`)에 두세요. Windows 폴더(`/mnt/c/...`)도 쓸 수 있지만 느립니다. 결과는 Windows 탐색기 주소창에 `\\wsl$\Ubuntu-24.04\home\<사용자>\pumat\results`를 입력해 열 수 있습니다.
+
 ## 문제 해결
 
 | 증상 | 원인과 해결 |
@@ -236,6 +321,8 @@ indexer:
 | `new requesters are limited to ...` | 처음 쓰는 워커의 walltime 제한 → walltime 줄이기 |
 | 연결이 안 됨 | `pumat network diagnose`로 부트스트랩 연결·Reachability 확인 |
 | 계산이 `FAILED` | `pumat job status <id>`의 Error 확인. 워커 쪽은 `~/.pumat/agent.log` |
+| (Windows) 터미널을 닫으면 워커가 사라짐 | WSL이 멈춘 것. 기여하는 동안 Ubuntu 터미널을 열어 두기 |
+| (Windows) 다른 노드와 직접 연결이 안 됨 | `.wslconfig`에 `networkingMode=mirrored` 설정 (Windows 11) |
 
 ## 명령 한눈에 보기
 
