@@ -32,7 +32,7 @@ jobs:
             mkdir -p "$d"
             GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -trimpath -buildvcs=false \
               -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "$d/pumat" ./cmd/pumat
-            cp README.md "$d/"
+            cp README.md LICENSE NOTICE "$d/"
             tar -czf "dist/$d.tar.gz" "$d"
           done
           (cd dist && sha256sum *.tar.gz > SHA256SUMS)

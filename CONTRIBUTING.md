@@ -42,5 +42,5 @@ manifest. Open an issue first; public-namespace solvers go through review
 ## Commits
 
 Small, focused commits with a clear message. Include tests for behavior
-changes. By contributing you agree your contribution is licensed under the
-project license once it is chosen (see README).
+changes. By contributing you agree that code contributions are licensed under
+Apache-2.0 and documentation contributions under CC BY 4.0 (see README).

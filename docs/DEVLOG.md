@@ -28,7 +28,7 @@ v0.1 완료 정의(§65) 대비: 1(서명 릴리스 설치)은 첫 태그 후 �
 | U1 | `secrets/solver-signing.key` 보관 | 프로젝트 솔버 서명 키(신뢰 루트, ADR-0009) | 해결: 이 로컬 머신에 보관하기로 결정 (2026-10-02) |
 | U2 | ~~GHCR 토큰~~ | GitHub Actions의 `GITHUB_TOKEN`으로 이미지 게시 → 개인 토큰 불필요. 패키지는 공개 repo에 연결되어 익명 pull 가능 확인 | 해결 (2026-10-02) |
 | U3 | Linux 머신 2대 이상에서 실제 다중 노드 테스트 | 현재 검증은 macOS(OrbStack) 한 대에서 두 노드. 서로 다른 네트워크 간 연결은 Phase 2 이후 | 대기 |
-| U4 | 라이선스 결정 (스펙 권장: 코드 Apache-2.0, 스펙 CC BY 4.0) | LICENSE 파일이 없으면 외부 기여·사용이 법적으로 불명확 | 대기 |
+| U4 | 라이선스 결정 | 코드 Apache-2.0, 스펙·문서 CC BY 4.0 | 해결: 제안대로 승인 (2026-10-02) |
 | U5 | (로컬 환경) Docker 자격 증명 헬퍼 | 이 Mac에서 `docker-credential-osxkeychain`이 키체인 프롬프트로 멈춤. 개발 중에는 별도 `DOCKER_CONFIG`로 우회함. Docker Desktop/OrbStack 설정에서 credsStore를 정리하면 해결 | 참고 |
 
 ---
@@ -206,3 +206,11 @@ A(요청자+익스플로러), B·C(워커):
 - `docs/QUICKSTART.md` (한국어): 역할 선택 → 설치 → 초기화 → 워커 기여 → 첫 계산 → detached → 결과 구조 → 내 job 작성 → 공개·재현·익스플로러 → 다른 네트워크 연결 → 문제 해결
 - 문서의 명령 순서를 새 노드 2개에서 그대로 실행해 확인 (submit --detach → job fetch → COMPLETED, receipt verify 통과)
 - 첫 릴리스 전까지는 소스 빌드(Go 1.27+) 안내. 릴리스 후 설치 스크립트로 교체 예정 (U7)
+
+---
+
+## 2026-10-02 — 라이선스 확정, 첫 릴리스
+
+- 사용자가 제안을 승인: **코드 Apache-2.0, 스펙·문서 CC BY 4.0, 첫 태그 `v0.1.0-alpha.1`**
+- `LICENSE`(apache.org 공식 원문), `NOTICE`(서드파티 고지: QE는 GPL-2.0-or-later로 별도 컨테이너 이미지로만 실행, 의사퍼텐셜 미재배포), `docs/LICENSE.md` + CC BY 4.0 원문
+- 릴리스 아카이브에 LICENSE·NOTICE 포함

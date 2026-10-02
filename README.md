@@ -140,5 +140,7 @@ docs/                  specification, ADRs, development log
 
 ## License
 
-Not yet licensed. The spec recommends Apache-2.0 for code and CC BY 4.0 for
-specifications (§54); a LICENSE file will be added after that decision.
+- Code: [Apache License 2.0](LICENSE)
+- Specification and documentation (`docs/`): [CC BY 4.0](docs/LICENSE.md)
+- Solver images contain third-party software under their own licenses (see [NOTICE](NOTICE)).
+- Public scientific records carry the license chosen by their publisher.

@@ -1,0 +1,15 @@
+Pumat (Pumat Federated Computing Network)
+Copyright 2026 The Pumat Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+Specifications and documentation under docs/ are licensed under the Creative
+Commons Attribution 4.0 International license (see docs/LICENSE.md).
+
+Third-party software:
+- Solver images built from solvers/quantum-espresso contain Quantum ESPRESSO
+  (GPL-2.0-or-later, https://gitlab.com/QEF/q-e), OpenMPI, OpenBLAS and FFTW
+  under their own licenses. The Pumat agent does not link against them; it
+  runs them as separate container images (spec §41).
+- Pseudopotentials are not redistributed by this repository; example scripts
+  download them from their original source and verify pinned digests (§40).
+- Go module dependencies are listed in go.mod with their own licenses.
