@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: lint
+        run: make lint
+      - name: test (race)
+        run: go test -race ./...
+      - name: parser artifact is reproducible
+        run: |
+          want=$(sha256sum internal/parser/artifacts/qe-parser.wasm | cut -d' ' -f1)
+          make parser >/dev/null
+          got=$(sha256sum internal/parser/artifacts/qe-parser.wasm | cut -d' ' -f1)
+          echo "committed=$want rebuilt=$got"
+          test "$want" = "$got"
+      - name: cross-compile
+        run: |
+          for t in linux/amd64 linux/arm64 darwin/arm64 darwin/amd64; do
+            GOOS=${t%/*} GOARCH=${t#*/} CGO_ENABLED=0 go build -trimpath -o /dev/null ./cmd/pumat
+          done
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: two-node end-to-end with the real QE sandbox
+        run: make e2e
+      - name: agent logs
+        if: always()
+        run: tail -n 50 .e2e/*.log || true

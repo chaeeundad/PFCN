@@ -1,0 +1,51 @@
+# Silicon SCF with Quantum ESPRESSO (spec §12.2, Appendix A).
+# Replace manifestDigest with the digest printed by `pumat solver sign`
+# (or by scripts/dev-e2e.sh, which writes job.dev.yaml for you).
+apiVersion: pumat.org/v1alpha1
+kind: QuantumEspressoJob
+
+metadata:
+  name: silicon-scf
+  visibility: public
+  labels:
+    project: tutorial
+
+solver:
+  name: quantum-espresso
+  version: "7.4.1"
+  manifestDigest: "sha256:REPLACE_WITH_MANIFEST_DIGEST"
+  entrypoint: pw.x
+
+resources:
+  cpu:
+    cores: 2
+  memory: 2GiB
+  walltime: 30m
+
+system:
+  structure:
+    file: silicon.cif
+  pseudopotentials:
+    Si:
+      filename: Si.pbe-n-rrkjus_psl.1.0.0.UPF
+      digest: "sha256:669fb75395a9d26973b0ea1ce8223bbcb30d3396c5d48bf5e794d1243c52375a"
+      source: "https://pseudopotentials.quantum-espresso.org/upf_files/Si.pbe-n-rrkjus_psl.1.0.0.UPF"
+
+calculation:
+  type: scf
+  parameters:
+    ecutwfc: 30      # Ry
+    ecutrho: 240     # Ry
+    conv_thr: 1.0e-8
+    kpoints: [4, 4, 4]
+
+publication:
+  input: true
+  rawOutput: true
+  parsedOutput: true
+  provenance: true
+  license: CC-BY-4.0
+
+delivery:
+  mode: attached
+  resultRetention: 24h

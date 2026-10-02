@@ -634,6 +634,8 @@ Sigstore verification must work offline:
 - Verification must not require live access to Fulcio or Rekor (P7).
 - The allowed signer identities (OIDC issuer + subject, e.g. the solver CI workflow) are part of the namespace solver trust policy.
 
+Implementation note (Phase 1, ADR-0009): until the Sigstore trusted root and CI identities exist, solver manifests are §7.4.1 envelopes signed by Ed25519 solver signing keys listed in `trust.solverSigners`. Sigstore bundle verification becomes an additional required check for the public namespace in Phase 3.
+
 ## 7.7 Solver distribution
 
 Use OCI artifacts/images distributed from existing public OCI registries.
@@ -976,7 +978,7 @@ system:
       source: "https://..."     # where an agent may fetch it if not bundled (§40)
 
 calculation:
-  type: scf                     # scf | relax | vc-relax | nscf | bands (QE adapter allowlist)
+  type: scf                     # scf | relax | vc-relax (QE adapter allowlist; nscf/bands need multi-step workflows)
   parameters:                   # QE adapter allowlist only (§39.1); QE native units
     ecutwfc: 60                 # Ry
     kpoints: [8, 8, 8]
@@ -1356,6 +1358,8 @@ RESULT_EXPIRED    see above
 
 Every transition is persisted in SQLite before the corresponding network message is sent, and appended to the local event chain (§20.4).
 
+Implementation note (Phase 1): on the worker, `HELD` is not a separate stored state; a sealed execution stays `SEALED` until acknowledgment (`COMPLETED`) or the retention deadline (`RESULT_EXPIRED`). On the requester, `DELIVERED` means decrypted and verified, `ACKNOWLEDGED` means acceptance signed but not yet confirmed by the worker.
+
 ## 15.3 Lease
 
 The lease is a §7.4.1 signed envelope with schema `pumat.lease.v1`, signed by both peers.
@@ -1482,7 +1486,7 @@ When the solver exits (success, failure, or wall-time kill):
 
 1. The worker builds the **output bundle**: `output/` files, stdout/stderr, exit status, and `execution-environment.json` (artifact digest, platform, CPU model, core count, wall/CPU seconds).
 2. It chunks the bundle and computes the chunk Merkle root, which becomes `output_bundle_digest` (plaintext digest).
-3. It encrypts the bundle with HPKE (RFC 9180, base mode) to the lease's `result_recipient_key`. Each chunk is sealed with the HPKE context and a chunk-index nonce. The ciphertext gets its own chunk Merkle root, `sealed_bundle_digest`.
+3. It encrypts the bundle to the lease's `result_recipient_key`: HPKE (RFC 9180) base mode, DHKEM(X25519) + HKDF-SHA256 in export-only mode with `info = "pumat-result-v1\0" || exec_id`, exports a 32-byte key, and seals each chunk with ChaCha20-Poly1305 using the chunk index as nonce and `info || index` as AAD (ADR-0011). Index-addressed nonces allow fetching and opening chunks in any order. The ciphertext gets its own chunk Merkle root, `sealed_bundle_digest`.
 4. It signs the **worker completion statement** (§20.2) covering both digests.
 5. It destroys the workspace encryption key and deletes the plaintext workspace (§28.2). State becomes `SEALED`.
 
@@ -2788,9 +2792,10 @@ Input validation should impose:
 
 | Parameter | Fixed value | Reason |
 |---|---|---|
-| `outdir` | `/work/out` | path injection |
+| `outdir` | `/work/scratch` | path injection; scratch is never returned (only `/work/out` is bundled) |
 | `pseudo_dir` | `/work/pseudo` | path injection; pseudos come from the verified bundle |
 | `wfcdir` | unset (defaults to `outdir`) | path injection |
+| `pseudo_dir` contents | only digest-verified files from the input bundle | dependency pinning |
 | `prefix` | `pumat` | predictable output names for the parser |
 | `disk_io` | `low` | bound scratch disk use |
 | `max_seconds` | `walltime - 60s` | lets QE stop cleanly before the hard kill |

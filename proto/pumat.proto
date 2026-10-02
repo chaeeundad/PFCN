@@ -1,0 +1,115 @@
+// Pumat wire protocol, v1 (spec §7.4, §15, §16).
+//
+// Every signed object travels as a SignedEnvelope whose payload is RFC 8785
+// canonical JSON; protobuf is framing only and is never signed or hashed.
+// Frames are length-delimited (varint size prefix) on libp2p streams.
+syntax = "proto3";
+
+package pumat.v1;
+
+option go_package = "github.com/chaeeundad/PFCN/internal/pb";
+
+message SignedEnvelope {
+  string schema = 1;
+  bytes payload = 2;
+  repeated Signature signatures = 3;
+}
+
+message Signature {
+  string signer = 1;
+  string alg = 2;
+  bytes sig = 3;
+}
+
+message Error {
+  string code = 1;
+  string message = 2;
+}
+
+message Frame {
+  oneof body {
+    Error error = 1;
+    CapabilityRequest capability_request = 2;
+    SignedEnvelope capability = 3;
+    LeaseRequest lease_request = 4;
+    SignedEnvelope lease_offer = 5;          // worker-signed lease draft
+    SignedEnvelope lease_countersigned = 6;  // requester + worker signatures
+    LeaseConfirm lease_confirm = 7;
+    InputBegin input_begin = 8;
+    InputHave input_have = 9;
+    Chunk chunk = 10;
+    InputDone input_done = 11;
+    StatusRequest status_request = 12;
+    Status status = 13;
+    ChunkRequest chunk_request = 14;
+    Ack ack = 15;
+    AckResult ack_result = 16;
+  }
+}
+
+// /pumat/capability/1.0.0
+message CapabilityRequest {
+  string namespace = 1;
+}
+
+// /pumat/lease/1.0.0
+message LeaseRequest {
+  SignedEnvelope request = 1;          // pumat.lease.request.v1, requester-signed
+  SignedEnvelope solver_manifest = 2;  // pumat.solver.v1, trust-root-signed
+}
+
+message LeaseConfirm {
+  string lease_id = 1;
+}
+
+// /pumat/input/1.0.0
+message InputBegin {
+  string exec_id = 1;
+  int64 size = 2;
+  uint32 chunk_size = 3;
+  repeated bytes chunk_hashes = 4;  // leaf hashes; root must equal lease input_bundle_digest
+}
+
+message InputHave {
+  repeated uint32 missing = 1;
+}
+
+message Chunk {
+  uint32 index = 1;
+  bytes data = 2;
+}
+
+message InputDone {
+  bool ok = 1;
+}
+
+// /pumat/result/1.0.0
+message StatusRequest {
+  string exec_id = 1;
+}
+
+message Status {
+  string exec_id = 1;
+  string state = 2;
+  SignedEnvelope completion = 3;          // set from SEALED on
+  bytes enc = 4;                          // HPKE encapsulated key
+  int64 sealed_size = 5;
+  uint32 sealed_chunk_size = 6;
+  repeated bytes sealed_chunk_hashes = 7;
+  int64 elapsed_seconds = 8;
+  int64 retention_deadline_unix = 9;
+  string message = 10;
+}
+
+message ChunkRequest {
+  string exec_id = 1;
+  repeated uint32 indices = 2;
+}
+
+message Ack {
+  SignedEnvelope acceptance = 1;  // pumat.receipt.acceptance.v1
+}
+
+message AckResult {
+  bool ok = 1;
+}

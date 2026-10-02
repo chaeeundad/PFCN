@@ -1,0 +1,32 @@
+# Quantum ESPRESSO solver image for Pumat (spec §13, §39.1).
+# Only pw.x is built. The entrypoint wrapper is part of the signed image;
+# jobs can never change how the solver is launched.
+
+ARG DEBIAN=debian:bookworm-slim
+
+FROM ${DEBIAN} AS build
+ARG QE_VERSION=7.4.1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential gfortran cmake git ca-certificates pkg-config \
+      libopenmpi-dev openmpi-bin libopenblas-dev liblapack-dev libfftw3-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch qe-${QE_VERSION} https://gitlab.com/QEF/q-e.git /src/q-e
+WORKDIR /src/q-e/build
+RUN cmake .. \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_Fortran_COMPILER=mpif90 -DCMAKE_C_COMPILER=mpicc \
+      -DQE_ENABLE_MPI=ON -DQE_ENABLE_OPENMP=OFF \
+      -DQE_FFTW_VENDOR=FFTW3 -DBLA_VENDOR=OpenBLAS \
+    && make -j"$(nproc)" pw \
+    && install -D -m 0755 bin/pw.x /opt/qe/bin/pw.x
+
+FROM ${DEBIAN}
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openmpi-bin libopenmpi3 libgfortran5 libopenblas0-pthread liblapack3 libfftw3-double3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 1000 --create-home --shell /usr/sbin/nologin solver
+COPY --from=build /opt/qe/bin/pw.x /opt/qe/bin/pw.x
+COPY entry.sh /opt/pumat/bin/entry
+RUN chmod 0755 /opt/pumat/bin/entry
+USER 1000:1000
+ENTRYPOINT ["/opt/pumat/bin/entry"]

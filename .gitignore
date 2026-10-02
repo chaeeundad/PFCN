@@ -5,3 +5,14 @@
 secrets/
 *.key
 *.pem
+
+# Downloaded scientific dependencies (fetch scripts verify digests)
+examples/**/pseudo/
+
+# Build output
+bin/
+dist/
+examples/**/job.dev.yaml
+solvers/**/manifest.dev.yaml
+solvers/**/manifest.dev.signed.json
+.e2e/

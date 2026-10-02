@@ -1,0 +1,38 @@
+# Development solver manifest: image in a local registry (localhost:5000).
+# Template used by scripts/dev-e2e.sh (digests are substituted); not for the public network.
+schema: pumat.solver.v1
+name: quantum-espresso
+version: "7.4.1"
+source:
+  repository: https://gitlab.com/QEF/q-e
+  commit: qe-7.4.1
+  license: GPL-2.0-or-later
+artifacts:
+  - platform: linux/@ARCH@
+    reference: localhost:5000/pumat-solvers/quantum-espresso
+    mediaType: application/vnd.oci.image.manifest.v1+json
+    digest: @ARTIFACT_DIGEST@
+entrypoints:
+  pw.x:
+    launcher: mpi
+    network: deny
+    maxProcesses: 512
+    maxWalltime: 24h
+security:
+  rootFilesystem: readOnly
+  network: deny
+  privileged: false
+  hostMounts: false
+numerics:
+  blas: openblas
+  blasVersion: "0.3.21"
+  cpuDispatch: generic
+parser:
+  name: pumat-qe-parser
+  version: "0.1.0"
+  format: wasm
+  reference: builtin
+  digest: sha256:@PARSER_DIGEST@
+attestations:
+  sbom: ""
+  buildProvenance: ""
