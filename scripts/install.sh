@@ -62,10 +62,19 @@ else got=$(shasum -a 256 "$tmp/$name.tar.gz" | cut -d' ' -f1); fi
 say "Checksum verified"
 
 tar -xzf "$tmp/$name.tar.gz" -C "$tmp"
+# $PREFIX/bin may not exist yet (fresh Apple Silicon Macs have no /usr/local/bin).
 sudo=""
-[ -w "$PREFIX/bin" ] || sudo="sudo"
-$sudo install -m 0755 "$tmp/$name/pumat" "$PREFIX/bin/pumat"
-say "Installed $PREFIX/bin/pumat"
+target="$PREFIX/bin"
+probe="$target"
+while [ ! -d "$probe" ]; do probe=$(dirname "$probe"); done
+[ -w "$probe" ] || sudo="sudo"
+$sudo mkdir -p "$target"
+$sudo install -m 0755 "$tmp/$name/pumat" "$target/pumat"
+say "Installed $target/pumat"
+case ":$PATH:" in
+  *":$target:"*) ;;
+  *) say "note: $target is not on your PATH; add it, e.g. echo 'export PATH=\"$target:\$PATH\"' >> ~/.zshrc" ;;
+esac
 
 if [ "$os" = linux ] && [ "$(id -u)" = 0 ] && command -v systemctl >/dev/null 2>&1; then
   if ! id pumat >/dev/null 2>&1; then
