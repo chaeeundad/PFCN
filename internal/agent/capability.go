@@ -115,7 +115,7 @@ func (a *Agent) handleCapability(s network.Stream) {
 
 // QueryCapability fetches and verifies a peer's capability document.
 func (a *Agent) QueryCapability(ctx context.Context, p peer.ID) (*protocol.Capability, error) {
-	s, err := a.host.NewStream(ctx, p, protocol.ProtoCapability)
+	s, err := a.openStream(ctx, p, protocol.ProtoCapability, true)
 	if err != nil {
 		return nil, err
 	}

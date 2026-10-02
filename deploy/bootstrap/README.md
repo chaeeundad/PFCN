@@ -5,7 +5,9 @@ NAT reach each other when hole punching fails. Neither schedules jobs, sees
 job data, or authorizes execution (spec §9.1). Both are the normal `pumat`
 binary with a different configuration, and anyone can run one.
 
-Requirements: a small VM with a public IP, UDP/TCP 4001 open.
+Requirements: a small VM with a static public IP and UDP/TCP 4001 open
+(on AWS Lightsail: attach a static IP, and add TCP 4001 and UDP 4001 to both
+the IPv4 and the IPv6 firewall).
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chaeeundad/PFCN/main/scripts/install.sh | sudo sh
@@ -15,6 +17,12 @@ sudo chown pumat:pumat /var/lib/pumat/config.yaml && sudo chmod 600 /var/lib/pum
 sudo systemctl enable --now pumat-agent
 sudo -u pumat PUMAT_HOME=/var/lib/pumat pumat status   # copy the public /p2p/ address
 ```
+
+Cloud VMs behind 1:1 NAT (AWS, Lightsail, most clouds) only see their
+private address. Set `network.announce` to the public addresses and
+`network.reachability: public`; without the latter the relay service does
+not start until AutoNAT confirms reachability, which can take a long time on
+a small network.
 
 Do not run `pumat on`: bootstrap nodes do not need a container engine and
 should not execute jobs.

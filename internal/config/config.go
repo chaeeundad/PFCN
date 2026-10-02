@@ -65,6 +65,10 @@ type Network struct {
 	// Announce replaces the advertised addresses, e.g. the public IP of a
 	// cloud VM behind 1:1 NAT (AWS, Lightsail). Leave empty to auto-detect.
 	Announce []string `yaml:"announce"`
+	// Reachability forces "public" or "private" instead of AutoNAT probing.
+	// Bootstrap/relay servers with a fixed public IP set "public": a relay
+	// service only starts once the node knows it is publicly reachable.
+	Reachability string `yaml:"reachability"`
 }
 
 type Resources struct {
@@ -123,10 +127,14 @@ type Policy struct {
 	TrustedAfter              int
 }
 
-// DefaultBootstrap lists project-operated bootstrap peers. It is empty until
-// bootstrap1/2.pumat.org are deployed (see docs/DEVLOG.md); add community or
-// institutional bootstrap peers in config.yaml meanwhile.
-var DefaultBootstrap = []string{}
+// DefaultBootstrap lists project-operated bootstrap peers (§9.1). They also
+// serve as default relays for nodes behind NAT. Community or institutional
+// bootstrap peers can be added or substituted in config.yaml.
+var DefaultBootstrap = []string{
+	// bootstrap-1, AWS Lightsail ap-southeast-1
+	"/ip4/52.77.24.240/udp/4001/quic-v1/p2p/12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA",
+	"/ip4/52.77.24.240/tcp/4001/p2p/12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA",
+}
 
 // Default returns a configuration for a machine with the given resources:
 // half the cores and a quarter of memory are offered by default.
@@ -136,7 +144,10 @@ func Default(totalCores int, totalMemory int64) *Config {
 	return &Config{
 		Namespace: DefaultNamespace,
 		Listen:    []string{"/ip4/0.0.0.0/udp/4001/quic-v1", "/ip4/0.0.0.0/tcp/4001", "/ip6/::/udp/4001/quic-v1", "/ip6/::/tcp/4001"},
-		Network:   Network{Bootstrap: DefaultBootstrap, DHTMode: "auto", MDNS: true},
+		Network: Network{
+			Bootstrap: DefaultBootstrap, StaticRelays: DefaultBootstrap,
+			DHTMode: "auto", MDNS: true, Announce: []string{},
+		},
 		Resources: Resources{CPU: cpu, Memory: fmt.Sprintf("%dGiB", memGiB), Disk: "50GiB"},
 		Jobs: Jobs{
 			MaxWalltime: "6h", MaxConcurrent: 1, MaxResultRetention: "72h",
@@ -223,6 +234,11 @@ func (c *Config) Policy() (*Policy, error) {
 	p.TrustedAfter = c.Jobs.TrustedAfter
 	if p.MaxResultRetentionSeconds, err = job.ParseDuration(c.Jobs.MaxResultRetention); err != nil {
 		return nil, fmt.Errorf("jobs.maxResultRetention: %w", err)
+	}
+	switch c.Network.Reachability {
+	case "", "public", "private":
+	default:
+		return nil, fmt.Errorf("network.reachability must be public, private or empty")
 	}
 	switch c.Network.DHTMode {
 	case "", "auto", "server", "client":

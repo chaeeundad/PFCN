@@ -85,6 +85,7 @@ func (c *cluster) node(worker bool, tweak func(*config.Config)) *agent.Agent {
 	cfg.Resources.CPU, cfg.Resources.Memory = 1, "4GiB"
 	cfg.Requester.ResultsDir = filepath.Join(home, "results")
 	cfg.Network.MDNS = false
+	cfg.Network.Bootstrap, cfg.Network.StaticRelays = nil, nil // never touch real bootstrap nodes
 	cfg.Network.DHTMode = "server"
 	if tweak != nil {
 		tweak(cfg)

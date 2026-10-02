@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	lp2pproto "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
@@ -348,4 +349,28 @@ func (a *Agent) Network() NetworkView {
 	}
 	sort.Strings(v.ConnectedPeer)
 	return v
+}
+
+// directWait bounds how long we wait for hole punching (DCUtR) to replace a
+// relayed connection with a direct one.
+const directWait = 20 * time.Second
+
+// openStream opens a protocol stream to p. Relayed connections are limited
+// in time and bytes (Circuit Relay v2), so small control messages
+// (capability, lease, announcements) may use them, while bulk transfers wait
+// for hole punching to produce a direct connection (§9.3, §9.4).
+func (a *Agent) openStream(ctx context.Context, p peer.ID, proto lp2pproto.ID, controlOnly bool) (network.Stream, error) {
+	if !a.isDirect(p) && a.host.Network().Connectedness(p) == network.Limited {
+		deadline := time.Now().Add(directWait)
+		for !a.isDirect(p) && time.Now().Before(deadline) && ctx.Err() == nil {
+			time.Sleep(250 * time.Millisecond)
+		}
+	}
+	if !a.isDirect(p) {
+		if !controlOnly {
+			return nil, fmt.Errorf("no direct connection to %s (hole punching failed; data transfers do not use relays)", p)
+		}
+		ctx = network.WithAllowLimitedConn(ctx, "pumat control message")
+	}
+	return a.host.NewStream(ctx, p, proto)
 }

@@ -45,6 +45,7 @@ func newNode(t *testing.T, signer string, rt sandbox.Runtime, tweaks ...func(*co
 	cfg.Resources.CPU = 1
 	cfg.Resources.Memory = "4GiB"
 	cfg.Requester.ResultsDir = filepath.Join(home, "results")
+	cfg.Network.Bootstrap, cfg.Network.StaticRelays = nil, nil // never touch real bootstrap nodes
 	for _, tw := range tweaks {
 		tw(cfg)
 	}

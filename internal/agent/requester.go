@@ -260,7 +260,7 @@ func (a *Agent) leaseWith(ctx context.Context, worker peer.ID, addrs []string, l
 }
 
 func (a *Agent) negotiateLease(ctx context.Context, worker peer.ID, lrEnv *envelope.Envelope, lr *protocol.LeaseRequest, sv *solver.Verified) (*envelope.Envelope, error) {
-	s, err := a.host.NewStream(ctx, worker, protocol.ProtoLease)
+	s, err := a.openStream(ctx, worker, protocol.ProtoLease, true)
 	if err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ func (a *Agent) uploadInput(ctx context.Context, execID string) error {
 			return err
 		}
 	}
-	s, err := a.host.NewStream(ctx, worker, protocol.ProtoInput)
+	s, err := a.openStream(ctx, worker, protocol.ProtoInput, false)
 	if err != nil {
 		return err
 	}
@@ -485,7 +485,7 @@ func (a *Agent) Fetch(ctx context.Context, execID string) (string, error) {
 	if err != nil {
 		return a.markLostIfPastDeadline(exec, err)
 	}
-	s, err := a.host.NewStream(ctx, worker, protocol.ProtoResult)
+	s, err := a.openStream(ctx, worker, protocol.ProtoResult, false)
 	if err != nil {
 		return a.markLostIfPastDeadline(exec, err)
 	}
@@ -851,7 +851,7 @@ func (a *Agent) Cancel(ctx context.Context, execID string) error {
 	if err != nil {
 		return err
 	}
-	s, err := a.host.NewStream(ctx, worker, protocol.ProtoResult)
+	s, err := a.openStream(ctx, worker, protocol.ProtoResult, false)
 	if err != nil {
 		return err
 	}

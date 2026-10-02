@@ -12,6 +12,7 @@ network:
   staticRelays: []
   mdns: false
   # Cloud VMs behind 1:1 NAT (AWS/Lightsail) must announce their public IP:
+  reachability: public   # fixed public IP: start the relay service immediately
   announce: []
   #  - /ip4/<public-ip>/udp/4001/quic-v1
   #  - /ip4/<public-ip>/tcp/4001

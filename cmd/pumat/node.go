@@ -89,7 +89,8 @@ func agentCmd() *cobra.Command {
 			}
 			// SIGTERM stops new work immediately; leases stay in the store and
 			// running containers are interrupted (recorded as FAILED on restart).
-			a.SetMode(agent.ModePaused)
+			// The persisted mode is kept, so a restart resumes contributing.
+			a.StopAccepting()
 			cerr := a.Close()
 			return errors.Join(err, cerr)
 		},

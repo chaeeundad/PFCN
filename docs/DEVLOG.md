@@ -117,7 +117,7 @@ macOS 개발 머신에서 실제 QE 컨테이너로 두 노드 E2E를 통과함 
 ### 사용자 조치 추가
 | # | 항목 | 이유 |
 |---|---|---|
-| U6 | 공개 부트스트랩/relay 노드 운영 위치 결정 (공인 IP가 있는 작은 VM 1~2대) | 서로 다른 네트워크 간 탐색에 필요. 노드는 `network.dhtMode: server`, `relayService: true`로 같은 바이너리 사용 (deploy/ 참고 예정) |
+| U6 | 공개 부트스트랩/relay 노드 | 1호기 운영 중 (Lightsail 싱가포르 52.77.24.240). 2호기는 다른 리전에 추가 예정 |
 
 ---
 
@@ -220,3 +220,29 @@ A(요청자+익스플로러), B·C(워커):
   - Linux(alpine 컨테이너)에서 체크섬 검증 후 설치·`init` 동작
   - 체크섬 파일을 1바이트 변조하면 cosign 검증이 거부함
 - QUICKSTART 설치를 바이너리 기준으로 변경. 저장소 없이도 솔버 매니페스트와 예제를 받는 명령 추가. 소스 빌드는 접이식으로 남김
+
+---
+
+## 2026-10-02 — 첫 공개 부트스트랩 노드, 인터넷 구간 실측
+
+### 배포
+- AWS Lightsail 싱가포르(ap-southeast-1), Ubuntu 24.04, 2 vCPU / 0.9 GB, 고정 IP `52.77.24.240`
+- Peer ID `12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA`
+- 설치 스크립트로 설치, systemd `pumat-agent`(사용자 `pumat`), `dhtMode: server`, `relayService: true`
+- 관리 SSH 키는 이 Mac의 `~/.ssh/pumat_bootstrap`
+
+### 실측하며 발견해 고친 문제
+1. **Lightsail 방화벽**: 4001이 막혀 있었음 → 사용자가 IPv4/IPv6 규칙 추가
+2. **공인 IP 미광고**: AWS 1:1 NAT라 노드가 사설 IP(172.26.x)만 앎 → `network.announce` 추가
+3. **중계 서비스 미기동**: go-libp2p는 AutoNAT로 Public이 확인돼야 relay를 켜는데, 노드가 적으면 계속 Unknown → `network.reachability: public` 추가
+4. **중계 위 스트림 거부 + 전송량 제한**: libp2p는 제한 연결 위 스트림을 기본 거부하고, Relay v2는 연결당 바이트가 제한됨 → 스트림을 열 때 hole punching으로 직접 연결이 생기길 최대 20초 기다리고, 제어 메시지(capability·lease·공지)만 중계 허용, 데이터(입력·결과·레코드)는 직접 연결에서만
+5. **재시작하면 paused로 바뀜**: 에이전트가 종료 시 paused를 저장했음 → 종료 시에는 메모리에서만 수락 중지, 저장된 모드 유지
+6. 테스트와 e2e 스크립트가 실제 부트스트랩에 접속하지 않도록 분리
+
+### 인터넷 구간 E2E 결과
+- 요청자: 싱가포르 AWS (인바운드 4002 차단 상태)
+- 워커: 한국, 공유기 NAT 뒤 Mac (Docker로 실제 QE 실행), 포트 개방 없음
+- `--peer` 없이 부트스트랩 DHT에서 워커 발견 → 중계 연결 → **hole punching 성공으로 직접 연결** → 계약·업로드·실행·결과 회수 완료, **12.8초**, 에너지 −310.569142 eV
+
+### 기본 설정 변경
+- `config.DefaultBootstrap`과 기본 `staticRelays`에 1호기 등록 → 새 노드는 설정 없이 인터넷 너머 워커를 찾음

@@ -84,6 +84,7 @@ for n, port, cpu in (("A", pa, 1), ("B", pb, 2)):
     s = re.sub(r"solverSigners:\n(\s+- .*\n)+", f"solverSigners:\n        - {signer}\n", s)
     s = re.sub(r"resultsDir: .*", f"resultsDir: {E}/{n}/results", s)
     s = re.sub(r"engine: \S+", f"engine: {engine}", s)  # use the engine that holds the image
+    s = re.sub(r"(bootstrap|staticRelays):\n(\s+- .*\n)+", r"\1: []\n", s)  # local only
     open(p, "w").write(s)
 PY
 for n in A B; do "$PUMAT" --home "$E/$n" solver add "$E/manifest.dev.signed.json" >/dev/null; done

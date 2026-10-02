@@ -259,6 +259,12 @@ func (a *Agent) Start(parent context.Context) error {
 		}
 		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr { return announce }))
 	}
+	switch a.cfg.Network.Reachability {
+	case "public":
+		opts = append(opts, libp2p.ForceReachabilityPublic())
+	case "private":
+		opts = append(opts, libp2p.ForceReachabilityPrivate())
+	}
 	if a.cfg.Network.RelayService {
 		// Bounded reservations (§9.4); bulk transfers should use direct paths.
 		opts = append(opts, libp2p.EnableRelayService(), libp2p.EnableNATService())
@@ -347,6 +353,14 @@ func (a *Agent) SetMode(mode string) error {
 		}
 	}
 	return a.store.AppendEvent("mode", map[string]any{"mode": mode})
+}
+
+// StopAccepting refuses new leases for the rest of this process without
+// changing the persisted mode (used on shutdown).
+func (a *Agent) StopAccepting() {
+	a.mu.Lock()
+	a.mode = ModePaused
+	a.mu.Unlock()
 }
 
 // connect dials a peer from multiaddr strings.

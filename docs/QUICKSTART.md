@@ -3,7 +3,7 @@
 Pumat 노드를 설치해서 **계산 자원을 기여**하거나 **계산을 맡기는** 데까지 15분 안에 끝내는 안내입니다.
 개념 소개는 [소개 슬라이드](https://chaeeundad.github.io/PFCN/slides/)를, 프로토콜 전체는 [스펙](architecture.md)을 보세요.
 
-> 상태: pre-alpha (`v0.1.0-alpha.1`). 공개 부트스트랩 노드가 아직 없어서 **같은 LAN 안에서는 자동으로 서로를 찾고**, 다른 네트워크의 노드는 주소(`--peer`)로 연결합니다.
+> 상태: pre-alpha (`v0.1.0-alpha.2`). 기본 설정에 공개 부트스트랩·중계 노드가 들어 있어서 **다른 네트워크나 공유기(NAT) 뒤에 있는 노드끼리도 자동으로 서로를 찾고 직접 연결**합니다. 같은 LAN에서는 mDNS로 더 빨리 찾습니다.
 
 ## 0. 역할 고르기
 
@@ -123,8 +123,10 @@ Converged:     true (7 SCF steps)
 Total energy:  -310.569142 eV
 ```
 
-- **같은 LAN**: 워커를 자동으로 찾습니다.
-- **다른 네트워크**: 워커의 `pumat status`에 나온 주소를 넣습니다. 워커 쪽 UDP/TCP 4001 포트가 열려 있어야 합니다.
+- **어디서든**: 워커를 자동으로 찾습니다. 같은 LAN이면 mDNS로, 아니면 공개 부트스트랩의 DHT로 찾습니다.
+- 워커가 공유기 뒤에 있으면 먼저 부트스트랩 중계로 연결한 뒤 hole punching으로 직접 연결합니다. 포트를 열 필요가 없습니다.
+- 데이터는 직접 연결로만 보냅니다. 양쪽 모두 NAT 종류 때문에 직접 연결이 끝내 안 되면 오류로 알려 줍니다.
+- 특정 워커를 지정하려면 그 워커의 `pumat status`에 나온 주소를 넣습니다.
 
   ```bash
   pumat submit job.yaml --peer /ip4/203.0.113.10/udp/4001/quic-v1/p2p/12D3KooW...
@@ -207,30 +209,25 @@ indexer:
 
 브라우저에서 http://127.0.0.1:8080 을 열면 공지된 공개 레코드를 검색할 수 있습니다. API는 `/api/records?formula=Si`입니다.
 
-## 7. 다른 네트워크의 노드와 연결하기
+## 7. 부트스트랩 노드
 
-공개 IP가 있는 노드 하나를 부트스트랩으로 정하고, 다른 노드들의 `~/.pumat/config.yaml`에 그 주소를 넣으면 `--peer` 없이 서로를 찾습니다.
+기본 설정에는 프로젝트가 운영하는 부트스트랩·중계 노드가 들어 있습니다(`network.bootstrap`, `network.staticRelays`). 기관이나 커뮤니티가 자체 부트스트랩을 운영하면 목록에 추가하거나 바꿔 쓸 수 있습니다.
 
-```yaml
-network:
-  bootstrap:
-    - /ip4/203.0.113.10/udp/4001/quic-v1/p2p/12D3KooW...
-```
-
-부트스트랩·relay 노드 운영 방법은 [`deploy/bootstrap/README.md`](https://github.com/chaeeundad/PFCN/blob/main/deploy/bootstrap/README.md)에 있습니다.
+운영 방법은 [`deploy/bootstrap/README.md`](https://github.com/chaeeundad/PFCN/blob/main/deploy/bootstrap/README.md)에 있습니다. 같은 바이너리를 `dhtMode: server`, `relayService: true`, `reachability: public`으로 실행하면 됩니다.
 
 ## 문제 해결
 
 | 증상 | 원인과 해결 |
 |---|---|
 | `cannot reach the local agent` | 에이전트가 꺼져 있음 → `pumat agent &` |
-| `no workers found for this solver` | 같은 LAN에 `on` 상태 워커가 없음 → `--peer`로 주소 지정, 또는 `network.bootstrap` 설정 |
+| `no workers found for this solver` | `on` 상태 워커가 없거나, 막 켜져서 아직 공지 전임 (최대 1분) → 잠시 뒤 재시도, 또는 `--peer`로 지정 |
+| `no direct connection ... hole punching failed` | 양쪽 NAT 모두 직접 연결이 불가능한 유형 → 한쪽에서 UDP/TCP 4001을 열거나 공인 IP 노드 사용 |
 | `worker is paused` / `busy` | 워커가 `off`이거나 동시 작업 한도에 걸림 |
 | `solver manifest ... is not installed` | `pumat solver add manifest.signed.json` (1단계에서 받은 파일) |
 | `pseudopotential ... digest mismatch` | 파일이 job에 고정한 digest와 다름 → 파일 확인 또는 digest 갱신 |
 | `parameter "..." is not in the allowlist` | 허용되지 않은 QE 파라미터 (스펙 §39.1) |
 | `new requesters are limited to ...` | 처음 쓰는 워커의 walltime 제한 → walltime 줄이기 |
-| 다른 네트워크에서 연결 안 됨 | 워커의 UDP/TCP 4001 방화벽 확인, `pumat network diagnose` |
+| 연결이 안 됨 | `pumat network diagnose`로 부트스트랩 연결·Reachability 확인 |
 | 계산이 `FAILED` | `pumat job status <id>`의 Error 확인. 워커 쪽은 `~/.pumat/agent.log` |
 
 ## 명령 한눈에 보기

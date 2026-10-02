@@ -235,7 +235,7 @@ func (a *Agent) pushAnnouncement(ctx context.Context, ann *envelope.Envelope) in
 			if err := a.host.Connect(cctx, info); err != nil {
 				return err
 			}
-			s, err := a.host.NewStream(cctx, info.ID, ProtoAnnounce)
+			s, err := a.openStream(cctx, info.ID, ProtoAnnounce, true)
 			if err != nil {
 				return err
 			}
@@ -386,7 +386,7 @@ func (a *Agent) fetchRecordFrom(ctx context.Context, p peer.ID, recordID string)
 	if err := a.host.Connect(cctx, peer.AddrInfo{ID: p}); err != nil {
 		return nil, err
 	}
-	s, err := a.host.NewStream(cctx, p, ProtoRecord)
+	s, err := a.openStream(cctx, p, ProtoRecord, false)
 	if err != nil {
 		return nil, err
 	}
