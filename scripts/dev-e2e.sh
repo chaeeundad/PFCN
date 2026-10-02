@@ -32,23 +32,28 @@ fi
 "$ENGINE" push "$IMG:7.4.1" >/dev/null
 ARCH=$("$ENGINE" info --format '{{.Architecture}}' 2>/dev/null || "$ENGINE" info --format '{{.Host.Arch}}')
 case "$ARCH" in x86_64|amd64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
-# Resolve the platform-specific manifest digest from the registry (from the daemon's network).
-INDEX=$("$ENGINE" run --rm --network host curlimages/curl -s \
-  -H 'Accept: application/vnd.oci.image.index.v1+json' -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
+# Resolve the platform-specific manifest digest from the registry (from the
+# daemon's network). The registry's Docker-Content-Digest header is
+# authoritative; never hash a re-encoded body.
+ACCEPT='application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json'
+RESP=$("$ENGINE" run --rm --network host curlimages/curl -s -i -H "Accept: $ACCEPT" \
   "http://$REG/v2/pumat-solvers/quantum-espresso/manifests/7.4.1")
-DIGEST=$(printf '%s' "$INDEX" | python3 -c '
-import json,sys
-arch=sys.argv[1]; m=json.load(sys.stdin)
-if "manifests" not in m:
-    print("INDEX_IS_MANIFEST"); sys.exit()
-for d in m["manifests"]:
-    p=d.get("platform",{})
-    if p.get("os")=="linux" and p.get("architecture")==arch:
-        print(d["digest"]); break
+DIGEST=$(printf '%s' "$RESP" | python3 -c '
+import json, sys
+arch = sys.argv[1]
+raw = sys.stdin.read().replace("\r\n", "\n")
+head, _, body = raw.partition("\n\n")
+hdr = {l.split(":", 1)[0].strip().lower(): l.split(":", 1)[1].strip() for l in head.splitlines()[1:] if ":" in l}
+m = json.loads(body)
+if "manifests" in m:
+    for d in m["manifests"]:
+        p = d.get("platform", {})
+        if p.get("os") == "linux" and p.get("architecture") == arch:
+            print(d["digest"]); break
+else:
+    print(hdr["docker-content-digest"])
 ' "$ARCH")
-if [ "$DIGEST" = "INDEX_IS_MANIFEST" ]; then
-  DIGEST="sha256:$(printf '%s' "$INDEX" | (sha256sum 2>/dev/null || shasum -a 256) | cut -d' ' -f1)"
-fi
+[ -n "$DIGEST" ] || { echo "could not resolve the image digest" >&2; exit 1; }
 echo "    linux/$ARCH manifest: $DIGEST"
 
 echo "==> dev signing key + manifest"
