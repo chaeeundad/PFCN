@@ -1,6 +1,7 @@
 # Silicon SCF with Quantum ESPRESSO (spec §12.2, Appendix A).
-# Replace manifestDigest with the digest printed by `pumat solver sign`
-# (or by scripts/dev-e2e.sh, which writes job.dev.yaml for you).
+# manifestDigest pins the public signed solver manifest
+# (solvers/quantum-espresso/manifest.signed.json). Install it on every node:
+#   pumat solver add solvers/quantum-espresso/manifest.signed.json
 apiVersion: pumat.org/v1alpha1
 kind: QuantumEspressoJob
 
@@ -13,7 +14,7 @@ metadata:
 solver:
   name: quantum-espresso
   version: "7.4.1"
-  manifestDigest: "sha256:REPLACE_WITH_MANIFEST_DIGEST"
+  manifestDigest: "sha256:8b9f313c30ca190effbde43d89d95d9bbcdd0d6f16b7baacbe7798868b009d92"
   entrypoint: pw.x
 
 resources:

@@ -108,9 +108,10 @@ type Agent struct {
 
 	fetchInterval time.Duration
 
-	disc       *discovery
-	provideNow chan struct{}
-	stop       context.CancelFunc
+	disc        *discovery
+	provideNow  chan struct{}
+	stop        context.CancelFunc
+	revocations *solver.RevocationList
 
 	mu       sync.Mutex
 	mode     string
@@ -166,6 +167,9 @@ func Open(o Options) (*Agent, error) {
 		a.fetchInterval = o.FetchInterval
 	}
 	a.rt = o.Runtime
+	if err := a.loadRevocations(); err != nil {
+		return nil, err
+	}
 	mode, ok, err := st.GetKV("mode")
 	if err != nil {
 		return nil, err
@@ -252,9 +256,10 @@ func (a *Agent) Start(parent context.Context) error {
 	if err := a.startDiscovery(ctx); err != nil {
 		return err
 	}
-	a.wg.Add(2)
+	a.wg.Add(3)
 	go a.sweepLoop(ctx)
 	go a.fetchLoop(ctx)
+	go a.revocationLoop(ctx)
 	a.log.Info("agent started", "mode", a.Mode(), "addrs", a.Addrs(), "runtime", a.runtimeName(), "platform", a.platform)
 	return nil
 }

@@ -345,3 +345,41 @@ func firstManifest(t *testing.T, a *Agent) string {
 	}
 	return filepath.Join(a.paths.Solvers(), entries[0].Name())
 }
+
+func TestRevokedSolverIsRefused(t *testing.T) {
+	n := setup(t)
+	ctx := n.start(t)
+	n.worker.SetMode(ModeAvailable)
+	key, err := identity.Generate(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Trust the revocation signer on the worker only.
+	pol := n.worker.Trust()
+	pol.TrustedSigners = append(pol.TrustedSigners, key.PeerID.String())
+	n.worker.SetTrust(pol)
+	next := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	env, err := solver.SignRevocations(&solver.RevocationList{
+		Schema: solver.RevocationSchema, Namespace: config.DefaultNamespace, Sequence: 1,
+		IssuedAt: next, NextUpdateBefore: next,
+		Revoked: []solver.Revoked{{Kind: solver.RevokeManifest, Digest: n.manifestDigest, Reason: "broken_scientific_output"}},
+	}, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := n.worker.InstallRevocations(env); err != nil {
+		t.Fatal(err)
+	}
+	_, err = n.requester.Submit(ctx, SubmitRequest{JobPath: n.jobPath, Peer: n.worker.Addrs()}, nil)
+	if err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatalf("expected revocation rejection, got %v", err)
+	}
+	// Rollback protection: an older sequence is refused.
+	old, _ := solver.SignRevocations(&solver.RevocationList{Schema: solver.RevocationSchema, Sequence: 1, NextUpdateBefore: next, Revoked: []solver.Revoked{}}, key)
+	if _, err := n.worker.InstallRevocations(old); err == nil {
+		// same sequence returns the installed list; it must still be the revoking one
+		if n.worker.Revocations().Revoked[0].Digest != n.manifestDigest {
+			t.Fatal("equal-sequence list must not replace the installed one")
+		}
+	}
+}

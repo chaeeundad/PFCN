@@ -130,6 +130,14 @@ func (a *Agent) runExecution(ctx context.Context, execID string) error {
 	if err != nil {
 		return err
 	}
+	if err := manifest.Manifest.Validate(); err != nil {
+		return err
+	}
+	if rl := a.Revocations(); rl != nil {
+		if err := rl.Check(manifest); err != nil {
+			return err
+		}
+	}
 	art, ok := manifest.Manifest.ArtifactFor(lease.Platform)
 	if !ok || art.Digest != lease.ArtifactDigest {
 		return errors.New("leased artifact is not in the solver manifest")

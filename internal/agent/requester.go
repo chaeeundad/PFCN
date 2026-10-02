@@ -73,6 +73,9 @@ func (a *Agent) Submit(ctx context.Context, req SubmitRequest, progress func(str
 	if err != nil {
 		return nil, fmt.Errorf("%w (install it with `pumat solver add <manifest.signed.json>`)", err)
 	}
+	if err := a.checkRevocation(sv); err != nil {
+		return nil, err
+	}
 	if sv.Manifest.Name != cj.Solver.Name || sv.Manifest.Version != cj.Solver.Version {
 		return nil, errors.New("job solver name/version does not match the pinned manifest")
 	}

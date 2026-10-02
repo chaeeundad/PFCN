@@ -84,6 +84,7 @@ func solverCmd() *cobra.Command {
 	sign.Flags().StringVar(&key, "key", "", "solver signing key file")
 	sign.Flags().StringVar(&signOut, "out", "", "output file for the signed manifest")
 	cmd.AddCommand(sign)
+	cmd.AddCommand(solverRevokeCmd())
 
 	cmd.AddCommand(&cobra.Command{
 		Use:   "add <manifest.signed.json>",

@@ -116,6 +116,15 @@ func (a *Agent) ServeAPI(ctx context.Context) error {
 	mux.HandleFunc("GET /v1/solvers", a.apiSolvers)
 	mux.HandleFunc("GET /v1/ledger/verify", a.apiLedger)
 	mux.HandleFunc("GET /v1/capability", a.apiCapability)
+	mux.HandleFunc("POST /v1/revocations", a.apiAddRevocations)
+	mux.HandleFunc("GET /v1/revocations", func(w http.ResponseWriter, _ *http.Request) {
+		rl := a.Revocations()
+		if rl == nil {
+			writeErr(w, 404, errors.New("no revocation list installed"))
+			return
+		}
+		writeJSON(w, 200, rl)
+	})
 	mux.HandleFunc("GET /v1/network", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, a.Network()) })
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
@@ -322,4 +331,23 @@ func (a *Agent) apiCapability(w http.ResponseWriter, _ *http.Request) {
 	var c protocol.Capability
 	env.Decode(&c)
 	writeJSON(w, 200, c)
+}
+
+func (a *Agent) apiAddRevocations(w http.ResponseWriter, r *http.Request) {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	env, err := envelope.ParseFile(raw)
+	if err != nil {
+		writeErr(w, 400, err)
+		return
+	}
+	rl, err := a.InstallRevocations(env)
+	if err != nil {
+		writeErr(w, 422, err)
+		return
+	}
+	writeJSON(w, 200, rl)
 }

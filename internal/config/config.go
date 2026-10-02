@@ -67,6 +67,11 @@ type Jobs struct {
 
 type Trust struct {
 	SolverSigners []string `yaml:"solverSigners"`
+	// RevocationURL is an https URL serving the signed revocation list (§13.5).
+	RevocationURL string `yaml:"revocationURL"`
+	// RequireRevocationList refuses new work when the list is missing or
+	// stale (fail closed). Enable once the namespace publishes a list.
+	RequireRevocationList bool `yaml:"requireRevocationList"`
 }
 
 type Solvers struct {

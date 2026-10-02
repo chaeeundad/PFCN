@@ -20,8 +20,8 @@ nodes do not execute arbitrary user code.
 
 ## Status
 
-Pre-alpha. Phase 0 (protocol skeleton) and Phase 1 (two-peer execution) are
-implemented. Two nodes run a Quantum ESPRESSO job end to end over libp2p:
+Pre-alpha. Phases 0-2 are implemented and Phase 3 is in progress. Nodes run
+a Quantum ESPRESSO job end to end over libp2p:
 
 - signed lease → encrypted input upload from the requester's disk
 - sandboxed `pw.x` (rootless-capable container, no network, read-only root, CPU/memory/PID/walltime limits)
@@ -29,7 +29,10 @@ implemented. Two nodes run a Quantum ESPRESSO job end to end over libp2p:
 - requester pulls the sealed result (attached or detached), decrypts, parses locally (WASM parser), signs the receipt
 - bilateral Compute Receipt and signed local event chains
 
-DHT discovery (Phase 2), hardening (Phase 3) and public records (Phase 4) are next.
+- discovery without a central scheduler: DHT provider records, bootstrap peers, mDNS, hole punching/relay
+- signed solver revocation lists; fuzzed protocol and input decoders
+
+Remaining hardening (Phase 3) and public scientific records (Phase 4) are next.
 
 ## Build
 
@@ -52,66 +55,52 @@ make e2e
 
 ## Two machines
 
-Machine B (worker, Linux with Docker or rootless Podman) and machine A
-(requester, Linux or macOS).
+The QE solver image is published to GHCR (`ghcr.io/chaeeundad/pumat-quantum-espresso`,
+linux/amd64 and linux/arm64) and pinned by the signed manifest
+`solvers/quantum-espresso/manifest.signed.json`. Nodes trust the project
+solver signer by default.
 
-1. On both machines: build and initialize.
+Worker (Linux with Docker or rootless Podman):
 
-   ```bash
-   make build
-   ./bin/pumat init
-   ```
+```bash
+make build
+./bin/pumat init
+./bin/pumat solver add solvers/quantum-espresso/manifest.signed.json
+./bin/pumat agent &          # or a systemd unit
+./bin/pumat on
+./bin/pumat status           # shows addresses to give requesters
+```
 
-2. Make the solver image and signed manifest available on both machines.
-   Until the project publishes them to GHCR (see docs/DEVLOG.md), build and sign
-   your own:
+Requester (Linux or macOS; no container runtime needed):
 
-   ```bash
-   # once, on a trusted machine; keep the key offline
-   ./bin/pumat solver keygen --out secrets/solver-signing.key
-   # push solvers/quantum-espresso/Containerfile to a registry B can pull from,
-   # put the platform manifest digest into a copy of manifest.dev.yaml.in, then:
-   ./bin/pumat solver sign manifest.yaml --key secrets/solver-signing.key --out manifest.signed.json
-   ```
+```bash
+make build
+./bin/pumat init
+./bin/pumat solver add solvers/quantum-espresso/manifest.signed.json
+examples/qe-si-scf/fetch-pseudo.sh
+./bin/pumat agent &
+./bin/pumat submit examples/qe-si-scf/job.yaml
+```
 
-   On both machines, add the printed signer ID to `trust.solverSigners` in
-   `~/.pumat/config.yaml`, then install the manifest:
+On the same LAN the worker is found automatically (mDNS). Across networks,
+either add a bootstrap peer to `network.bootstrap` in `~/.pumat/config.yaml`
+(DHT discovery), or point at the worker directly:
 
-   ```bash
-   ./bin/pumat solver add manifest.signed.json
-   ```
+```bash
+./bin/pumat submit examples/qe-si-scf/job.yaml --peer /ip4/<B-ip>/udp/4001/quic-v1/p2p/<B-peer-id>
+```
 
-3. On B, start the agent and accept work:
+Use `--detach` to close the laptop after the upload; the agent fetches the
+sealed result when it is back online (`pumat job list --pending`,
+`pumat job fetch <id>`).
 
-   ```bash
-   ./bin/pumat agent &          # or a systemd unit
-   ./bin/pumat on
-   ./bin/pumat status           # copy one of the printed addresses
-   ```
+Inspect provenance:
 
-   B needs no inbound firewall changes on a LAN. Across networks it must be
-   reachable on UDP/TCP 4001 until relay/hole punching lands in Phase 2.
-
-4. On A, fetch the example pseudopotential, set `solver.manifestDigest` in
-   `examples/qe-si-scf/job.yaml`, and submit:
-
-   ```bash
-   examples/qe-si-scf/fetch-pseudo.sh
-   ./bin/pumat agent &
-   ./bin/pumat submit examples/qe-si-scf/job.yaml --peer /ip4/<B-ip>/udp/4001/quic-v1/p2p/<B-peer-id>
-   ```
-
-   Use `--detach` to close the laptop after the upload; the agent fetches the
-   sealed result when it comes back online (`pumat job list --pending`,
-   `pumat job fetch <id>`).
-
-5. Inspect provenance:
-
-   ```bash
-   ./bin/pumat receipt verify <receipt-or-exec-id>
-   ./bin/pumat ledger verify
-   ls ~/pumat/results/<exec-id>/{input,output,parsed,provenance}
-   ```
+```bash
+./bin/pumat receipt verify <receipt-or-exec-id>
+./bin/pumat ledger verify
+ls ~/pumat/results/<exec-id>/{input,output,parsed,provenance}
+```
 
 ## Repository layout
 

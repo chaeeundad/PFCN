@@ -61,7 +61,7 @@ sed -e "s#@ARCH@#$ARCH#" -e "s#@ARTIFACT_DIGEST@#$DIGEST#" -e "s#@PARSER_DIGEST@
 SIGN_OUT=$("$PUMAT" solver sign "$E/manifest.dev.yaml" --key "$KEY" --out "$E/manifest.dev.signed.json")
 MANIFEST=$(printf '%s\n' "$SIGN_OUT" | awk '/Manifest digest/{print $3}')
 SIGNER=$(printf '%s\n' "$SIGN_OUT" | awk '/^Signer/{print $2}')
-sed "s/sha256:REPLACE_WITH_MANIFEST_DIGEST/$MANIFEST/" examples/qe-si-scf/job.yaml > examples/qe-si-scf/job.dev.yaml
+sed "s/manifestDigest: \".*\"/manifestDigest: \"$MANIFEST\"/" examples/qe-si-scf/job.yaml > examples/qe-si-scf/job.dev.yaml
 
 echo "==> nodes"
 for n in A B; do

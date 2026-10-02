@@ -14,7 +14,7 @@ build: parser
 # The QE parser artifact is a reproducible WASI module embedded in the agent.
 # Rebuilding it changes its digest, which must then be updated in solver manifests.
 parser:
-	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 $(GO) build -trimpath -ldflags="-s -w -buildid=" \
+	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 $(GO) build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" \
 		-o internal/parser/artifacts/qe-parser.wasm ./cmd/pumat-qe-parser
 	@shasum -a 256 internal/parser/artifacts/qe-parser.wasm 2>/dev/null || sha256sum internal/parser/artifacts/qe-parser.wasm
 

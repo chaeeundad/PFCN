@@ -205,6 +205,9 @@ func (a *Agent) evaluateLeaseRequest(remote string, lr *pb.LeaseRequest) (*envel
 	if err != nil {
 		return nil, nil, err
 	}
+	if err := a.checkRevocation(v); err != nil {
+		return nil, nil, err
+	}
 	if v.Digest != r.SolverManifestDigest {
 		return nil, nil, errors.New("solver manifest digest does not match the request")
 	}

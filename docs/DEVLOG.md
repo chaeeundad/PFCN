@@ -10,7 +10,7 @@
 | # | 항목 | 이유 | 상태 |
 |---|---|---|---|
 | U1 | `secrets/solver-signing.key` 오프라인 백업 | 프로젝트 솔버 서명 키(신뢰 루트). 분실 시 기존 매니페스트를 재서명해야 하고, 유출 시 임의 이미지가 승인될 수 있음 (ADR-0009) | 대기 |
-| U2 | `.env`에 `GHCR_USERNAME`/`GHCR_TOKEN` 입력 (write:packages) | QE 솔버 이미지를 GHCR에 공개해야 다른 머신이 digest로 pull 가능 | 대기 |
+| U2 | ~~GHCR 토큰~~ | GitHub Actions의 `GITHUB_TOKEN`으로 이미지 게시 → 개인 토큰 불필요. 패키지는 공개 repo에 연결되어 익명 pull 가능 확인 | 해결 (2026-10-02) |
 | U3 | Linux 머신 2대 이상에서 실제 다중 노드 테스트 | 현재 검증은 macOS(OrbStack) 한 대에서 두 노드. 서로 다른 네트워크 간 연결은 Phase 2 이후 | 대기 |
 | U4 | 라이선스 결정 (스펙 권장: 코드 Apache-2.0, 스펙 CC BY 4.0) | LICENSE 파일이 없으면 외부 기여·사용이 법적으로 불명확 | 대기 |
 | U5 | (로컬 환경) Docker 자격 증명 헬퍼 | 이 Mac에서 `docker-credential-osxkeychain`이 키체인 프롬프트로 멈춤. 개발 중에는 별도 `DOCKER_CONFIG`로 우회함. Docker Desktop/OrbStack 설정에서 credsStore를 정리하면 해결 | 참고 |
@@ -64,3 +64,41 @@ macOS 개발 머신에서 실제 QE 컨테이너로 두 노드 E2E를 통과함 
 - Phase 3: 리보케이션 목록, Sigstore 검증, 워크스페이스 암호화, 디스크 쿼터, 디코더 퍼징
 - Phase 4: 공개 레코드 번들/공지, 인덱서, 웹 익스플로러
 - Phase 5: 설치 스크립트, systemd 유닛, 서명된 릴리스
+
+---
+
+## 2026-10-02 — Phase 2 (탐색) + GHCR 게시 + Phase 3 일부
+
+### GHCR 인증 질문에 대한 정리
+- 키체인의 GitHub 토큰(`gho_…`, OAuth)은 scope가 `repo, workflow, read:user, user:email`이라 `write:packages`가 없어 로컬에서 GHCR push 불가.
+- 대신 `.github/workflows/solver-image.yml`이 Actions의 `GITHUB_TOKEN`(`packages: write`)으로 게시. 워크플로 실행은 키체인 토큰의 `workflow` scope로 API 디스패치.
+- 결과: `ghcr.io/chaeeundad/pumat-quantum-espresso`
+  - linux/amd64 `sha256:7ea3d7fb…d54`, linux/arm64 `sha256:34a42315…4da`, index `sha256:65f51b43…842`
+  - 익명 pull 가능 (공개 repo 연결로 공개 상태 상속)
+- 서명은 오프라인(로컬 프로젝트 키) 유지. 공개 매니페스트 digest: `sha256:8b9f313c30ca190effbde43d89d95d9bbcdd0d6f16b7baacbe7798868b009d92`
+- 예제 job.yaml이 이 digest를 고정 → 기본 설정의 새 노드에서 바로 실행 가능
+
+### Phase 2 구현
+- `/pumat` 프로토콜 접두사의 전용 Kad-DHT (IPFS 공용 DHT와 분리), `dht.DisableValues()` (provider record만 사용)
+- 워커는 available일 때 솔버 매니페스트별 provider record 공지(1시간 주기 재공지, `on` 시 즉시)
+- mDNS: 동시에 서로 다이얼하면 TCP simultaneous open으로 보안 핸드셰이크가 깨지는 문제 발견 → 작은 peer ID 쪽만 다이얼, 연결 실패 시 1회 재시도(backoff 우회)
+- NAT: `NATPortMap`, hole punching(DCUtR), 정적 relay(AutoRelay), 선택적 relay 서비스
+- `pumat submit`에서 `--peer` 생략 시 후보 탐색 → 서명된 capability 검증 → 직접 연결 우선·가용 코어 순 정렬 → 거절 시 다음 후보
+- 오래된 주소는 DHT `FindPeer`로 재해석
+- **기본 부트스트랩 목록은 비어 있음**: 프로젝트 부트스트랩 서버가 아직 없음 (U6 참고). 같은 LAN은 mDNS로 동작
+
+### Phase 3 일부
+- 서명된 리보케이션 목록(`pumat.revocation.v1`): 매니페스트/아티팩트/서명자 단위, sequence 롤백 방지, https URL 주기 갱신, `requireRevocationList`(기본 false: 아직 공개 목록 없음)
+- 워커(lease, 실행 직전)와 요청자(제출) 모두에서 검사
+- 퍼징 6종(JCS, envelope, CIF, job YAML, tar 추출, 프레임 디코딩) 각 20초 통과, CI에서는 seed corpus로 실행
+- **파서 재현성 버그 수정**: Go가 바이너리에 VCS 정보를 박아 넣어 CI 재빌드 digest가 달라짐 → `-buildvcs=false`. macOS arm64와 Linux amd64 컨테이너 빌드 digest 일치 확인 (`sha256:6257a438…5f5`)
+
+### 검증
+- 기본 설정 새 노드 2개: mDNS로 자동 탐색 → GHCR에서 익명 pull → 실행 → 영수증 완료 (약 12초, 이미지 pull 포함). 에너지는 로컬 빌드 이미지와 동일 (−310.569142 eV)
+- 3노드(부트스트랩+워커+요청자, mDNS 끔) DHT 탐색 통합 테스트 통과
+- `-race` 전체 통과
+
+### 사용자 조치 추가
+| # | 항목 | 이유 |
+|---|---|---|
+| U6 | 공개 부트스트랩/relay 노드 운영 위치 결정 (공인 IP가 있는 작은 VM 1~2대) | 서로 다른 네트워크 간 탐색에 필요. 노드는 `network.dhtMode: server`, `relayService: true`로 같은 바이너리 사용 (deploy/ 참고 예정) |

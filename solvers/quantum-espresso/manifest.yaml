@@ -1,0 +1,47 @@
+# Public Quantum ESPRESSO solver manifest (spec §13.1).
+# Images are built by .github/workflows/solver-image.yml from commit
+# 970503ba773e476327ee2adc413a5646f8ed5ddf and published to GHCR.
+# Signed offline with the project solver signing key (ADR-0009):
+#   pumat solver sign manifest.yaml --key secrets/solver-signing.key --out manifest.signed.json
+schema: pumat.solver.v1
+name: quantum-espresso
+version: "7.4.1"
+source:
+  repository: https://gitlab.com/QEF/q-e
+  commit: qe-7.4.1
+  license: GPL-2.0-or-later
+artifacts:
+  - platform: linux/amd64
+    reference: ghcr.io/chaeeundad/pumat-quantum-espresso
+    mediaType: application/vnd.oci.image.manifest.v1+json
+    digest: sha256:7ea3d7fb93f904b435071ceb6e3797a4cfc57ec0e848cf124ad43e6c28d18d54
+  - platform: linux/arm64
+    reference: ghcr.io/chaeeundad/pumat-quantum-espresso
+    mediaType: application/vnd.oci.image.manifest.v1+json
+    digest: sha256:34a423156bc78375f2c2f6cab6a97eb66133be7be2da9ea98815c361a9b984da
+index:
+  digest: sha256:65f51b43ef41da0b2c292df51f05c7ddeb9c345326e94f7cd30395aa67492842
+entrypoints:
+  pw.x:
+    launcher: mpi
+    network: deny
+    maxProcesses: 512
+    maxWalltime: 24h
+security:
+  rootFilesystem: readOnly
+  network: deny
+  privileged: false
+  hostMounts: false
+numerics:
+  blas: openblas
+  blasVersion: "0.3.21"
+  cpuDispatch: generic
+parser:
+  name: pumat-qe-parser
+  version: "0.1.0"
+  format: wasm
+  reference: builtin
+  digest: sha256:6257a438a3fd7a57705230773f0d25820ec7b547f04e7388a28fd2b9dcdb75f5
+attestations:
+  sbom: ""
+  buildProvenance: ""
