@@ -243,7 +243,7 @@ func (a *Agent) Start(parent context.Context) error {
 		libp2p.NATPortMap(),
 		libp2p.EnableHolePunching(),
 	}
-	if relays, err := parseAddrInfos(a.cfg.Network.StaticRelays); err != nil {
+	if relays, err := parseAddrInfos(expandDNSAddr(ctx, a.cfg.Network.StaticRelays)); err != nil {
 		return fmt.Errorf("network.staticRelays: %w", err)
 	} else if len(relays) > 0 {
 		opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(relays))

@@ -17,6 +17,7 @@ import (
 	lp2pproto "github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/multiformats/go-multiaddr"
+	madns "github.com/multiformats/go-multiaddr-dns"
 	"github.com/multiformats/go-multihash"
 
 	"github.com/chaeeundad/PFCN/internal/protocol"
@@ -51,6 +52,39 @@ type discovery struct {
 	reach    network.Reachability
 }
 
+// expandDNSAddr resolves /dnsaddr/<domain> entries (libp2p's DNS TXT
+// convention, _dnsaddr.<domain>) into concrete /p2p addresses, so the
+// bootstrap set can change in DNS without a release. Other entries pass
+// through; /dns4 and /dns6 addresses are resolved at dial time. Failed
+// lookups are skipped so the remaining entries still work.
+var dnsResolver = madns.DefaultResolver
+
+func expandDNSAddr(ctx context.Context, addrs []string) []string {
+	var out []string
+	for _, s := range addrs {
+		if !strings.HasPrefix(s, "/dnsaddr/") {
+			out = append(out, s)
+			continue
+		}
+		ma, err := multiaddr.NewMultiaddr(s)
+		if err != nil {
+			continue
+		}
+		rctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		res, err := dnsResolver.Resolve(rctx, ma)
+		cancel()
+		if err != nil {
+			continue
+		}
+		for _, r := range res {
+			if strings.Contains(r.String(), "/p2p/") {
+				out = append(out, r.String())
+			}
+		}
+	}
+	return out
+}
+
 func parseAddrInfos(addrs []string) ([]peer.AddrInfo, error) {
 	byID := map[peer.ID]*peer.AddrInfo{}
 	var order []peer.ID
@@ -79,7 +113,7 @@ func parseAddrInfos(addrs []string) ([]peer.AddrInfo, error) {
 
 // startDiscovery brings up the DHT, connects to bootstrap peers and starts mDNS.
 func (a *Agent) startDiscovery(ctx context.Context) error {
-	boot, err := parseAddrInfos(a.cfg.Network.Bootstrap)
+	boot, err := parseAddrInfos(expandDNSAddr(ctx, a.cfg.Network.Bootstrap))
 	if err != nil {
 		return fmt.Errorf("network.bootstrap: %w", err)
 	}
@@ -334,7 +368,7 @@ func (a *Agent) Network() NetworkView {
 		a.disc.mu.Unlock()
 		v.RoutingTable = a.disc.dht.RoutingTable().Size()
 	}
-	boot, _ := parseAddrInfos(a.cfg.Network.Bootstrap)
+	boot, _ := parseAddrInfos(expandDNSAddr(context.Background(), a.cfg.Network.Bootstrap))
 	for _, b := range boot {
 		if a.host.Network().Connectedness(b.ID) == network.Connected {
 			v.BootstrapUp = append(v.BootstrapUp, b.ID.String())

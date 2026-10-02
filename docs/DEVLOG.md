@@ -117,7 +117,8 @@ macOS 개발 머신에서 실제 QE 컨테이너로 두 노드 E2E를 통과함 
 ### 사용자 조치 추가
 | # | 항목 | 이유 |
 |---|---|---|
-| U6 | 공개 부트스트랩/relay 노드 | 1호기 운영 중 (Lightsail 싱가포르 52.77.24.240). 2호기는 다른 리전에 추가 예정 |
+| U6 | 공개 부트스트랩/relay 노드 | 1호기 운영 중 (Lightsail 싱가포르, `pfcn.pumat.org`). 2호기는 다른 리전에 추가 예정 |
+| U8 | Route 53에 `_dnsaddr.pfcn.pumat.org` TXT 레코드 추가 | 부트스트랩 목록을 DNS로 관리 (deploy/bootstrap/README.md) | 대기 |
 
 ---
 
@@ -246,3 +247,17 @@ A(요청자+익스플로러), B·C(워커):
 
 ### 기본 설정 변경
 - `config.DefaultBootstrap`과 기본 `staticRelays`에 1호기 등록 → 새 노드는 설정 없이 인터넷 너머 워커를 찾음
+
+---
+
+## 2026-10-02 — 부트스트랩 주소를 도메인 기반으로
+
+- 사용자가 `pfcn.pumat.org` A 레코드 → `52.77.24.240` 연결 (Route 53)
+- 기본 부트스트랩 목록을 IP 고정에서 도메인 기반으로 변경:
+  1. `/dnsaddr/pfcn.pumat.org`: 시작할 때 `_dnsaddr.pfcn.pumat.org` TXT 레코드에서 부트스트랩 목록(Peer ID 포함)을 읽음 → 서버 추가·교체를 **릴리스 없이 DNS로**
+  2. `/dns4/pfcn.pumat.org/...`: IP가 바뀌어도 동작
+  3. `/ip4/52.77.24.240/...`: DNS 장애 시 마지막 수단
+- 부트스트랩은 연결만 돕고 아무것도 승인하지 않으므로(§9.1) 서명 없는 DNS여도 영향은 가용성에 한정
+- 서버 announce에 `/dns4/pfcn.pumat.org` 추가. 도메인 항목만 남긴 새 노드가 부트스트랩에 직접 연결되는 것 확인
+- 서버 신원 키 백업: `secrets/bootstrap-1.node.key` (git 제외, Peer ID 일치 확인). 서버를 다시 만들어도 같은 Peer ID 유지 가능
+- **사용자 조치 U8**: Route 53에 `_dnsaddr.pfcn.pumat.org` TXT 레코드 추가 (값은 deploy/bootstrap/README.md). 추가 전에도 `/dns4` 항목으로 동작함

@@ -28,9 +28,24 @@ Do not run `pumat on`: bootstrap nodes do not need a container engine and
 should not execute jobs.
 
 Give the public address to users, who add it under `network.bootstrap`
-(and, for relays, `network.staticRelays`) in their `config.yaml`. Once the
-project operates `bootstrap1/2.pumat.org`, they will be listed in
-`config.DefaultBootstrap`.
+(and, for relays, `network.staticRelays`) in their `config.yaml`.
+
+## Project bootstrap set (DNS)
+
+Default configs use `/dnsaddr/pfcn.pumat.org`: nodes read the bootstrap set
+from the `_dnsaddr.pfcn.pumat.org` TXT records at startup, so servers can be
+added or replaced in DNS without a release. Each record is one address:
+
+```text
+_dnsaddr.pfcn.pumat.org.  TXT  "dnsaddr=/dns4/pfcn.pumat.org/udp/4001/quic-v1/p2p/<peer-id>"
+_dnsaddr.pfcn.pumat.org.  TXT  "dnsaddr=/dns4/pfcn.pumat.org/tcp/4001/p2p/<peer-id>"
+```
+
+Give every server its own A record (e.g. `pfcn.pumat.org`, `pfcn2.pumat.org`)
+and add its two lines to the TXT set. Back up each server's
+`/var/lib/pumat/identity/node.key`: restoring it keeps the peer ID when a
+server is rebuilt. Bootstrap peers are not trusted for anything but
+connectivity (§9.1), so DNS only affects availability.
 
 Relay limits use go-libp2p's Circuit Relay v2 defaults (bounded reservations,
 duration and bytes per relayed connection), so relays carry signalling and

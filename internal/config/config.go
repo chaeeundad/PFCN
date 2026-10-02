@@ -128,12 +128,20 @@ type Policy struct {
 }
 
 // DefaultBootstrap lists project-operated bootstrap peers (§9.1). They also
-// serve as default relays for nodes behind NAT. Community or institutional
-// bootstrap peers can be added or substituted in config.yaml.
+// serve as default relays for nodes behind NAT.
+//
+//   - /dnsaddr/pfcn.pumat.org expands to the current bootstrap set published
+//     in the _dnsaddr.pfcn.pumat.org TXT records (servers can be added or
+//     replaced without a release).
+//   - The /dns4 entry keeps working if the server's IP changes.
+//   - The /ip4 entry is a last resort when DNS is unavailable.
+//
+// Community or institutional bootstrap peers can be added in config.yaml.
 var DefaultBootstrap = []string{
-	// bootstrap-1, AWS Lightsail ap-southeast-1
+	"/dnsaddr/pfcn.pumat.org",
+	"/dns4/pfcn.pumat.org/udp/4001/quic-v1/p2p/12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA",
+	"/dns4/pfcn.pumat.org/tcp/4001/p2p/12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA",
 	"/ip4/52.77.24.240/udp/4001/quic-v1/p2p/12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA",
-	"/ip4/52.77.24.240/tcp/4001/p2p/12D3KooWDDtqx4Wx1n4FruMVgNVj2J7UkQUiBZU3FDAiyVL59EcA",
 }
 
 // Default returns a configuration for a machine with the given resources:
