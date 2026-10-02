@@ -49,7 +49,7 @@ pumat agent > ~/.pumat/agent.log 2>&1 &
 pumat status
 ```
 
-서버라면 systemd로 띄우는 것을 권장합니다. 유닛 파일은 [`deploy/systemd/pumat-agent.service`](../deploy/systemd/pumat-agent.service)에 있습니다.
+서버라면 systemd로 띄우는 것을 권장합니다. 유닛 파일은 [`deploy/systemd/pumat-agent.service`](https://github.com/chaeeundad/PFCN/blob/main/deploy/systemd/pumat-agent.service)에 있습니다.
 
 ## 3. 워커: 계산 자원 기여하기
 
@@ -135,7 +135,7 @@ pumat receipt verify <exec-id>        # 서명과 결합을 오프라인으로 �
 
 ## 5. 내 계산 만들기
 
-[`examples/qe-si-scf/job.yaml`](../examples/qe-si-scf/job.yaml)을 복사해서 고칩니다.
+[`examples/qe-si-scf/job.yaml`](https://github.com/chaeeundad/PFCN/blob/main/examples/qe-si-scf/job.yaml)을 복사해서 고칩니다.
 
 ```yaml
 metadata:
@@ -198,7 +198,7 @@ network:
     - /ip4/203.0.113.10/udp/4001/quic-v1/p2p/12D3KooW...
 ```
 
-부트스트랩·relay 노드 운영 방법은 [`deploy/bootstrap/README.md`](../deploy/bootstrap/README.md)에 있습니다.
+부트스트랩·relay 노드 운영 방법은 [`deploy/bootstrap/README.md`](https://github.com/chaeeundad/PFCN/blob/main/deploy/bootstrap/README.md)에 있습니다.
 
 ## 문제 해결
 
