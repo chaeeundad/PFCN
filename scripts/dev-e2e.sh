@@ -67,9 +67,9 @@ echo "==> nodes"
 for n in A B; do
   [ -f "$E/$n/config.yaml" ] || "$PUMAT" --home "$E/$n" init >/dev/null
 done
-python3 - "$E" "$SIGNER" "$PORT_A" "$PORT_B" <<'PY'
+python3 - "$E" "$SIGNER" "$PORT_A" "$PORT_B" "$ENGINE" <<'PY'
 import re, sys
-E, signer, pa, pb = sys.argv[1:]
+E, signer, pa, pb, engine = sys.argv[1:]
 for n, port, cpu in (("A", pa, 1), ("B", pb, 2)):
     p = f"{E}/{n}/config.yaml"; s = open(p).read()
     s = re.sub(r"/udp/\d+/quic-v1", f"/udp/{port}/quic-v1", s)
@@ -78,6 +78,7 @@ for n, port, cpu in (("A", pa, 1), ("B", pb, 2)):
     s = re.sub(r"memory: \S+", "memory: 4GiB", s, count=1)
     s = re.sub(r"solverSigners:\n(\s+- .*\n)+", f"solverSigners:\n        - {signer}\n", s)
     s = re.sub(r"resultsDir: .*", f"resultsDir: {E}/{n}/results", s)
+    s = re.sub(r"engine: \S+", f"engine: {engine}", s)  # use the engine that holds the image
     open(p, "w").write(s)
 PY
 for n in A B; do "$PUMAT" --home "$E/$n" solver add "$E/manifest.dev.signed.json" >/dev/null; done

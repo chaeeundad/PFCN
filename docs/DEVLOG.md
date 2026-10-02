@@ -102,3 +102,52 @@ macOS 개발 머신에서 실제 QE 컨테이너로 두 노드 E2E를 통과함 
 | # | 항목 | 이유 |
 |---|---|---|
 | U6 | 공개 부트스트랩/relay 노드 운영 위치 결정 (공인 IP가 있는 작은 VM 1~2대) | 서로 다른 네트워크 간 탐색에 필요. 노드는 `network.dhtMode: server`, `relayService: true`로 같은 바이너리 사용 (deploy/ 참고 예정) |
+
+---
+
+## 2026-10-02 — Phase 4 (공개 과학 레코드) + Phase 5 일부
+
+### Phase 4 구현
+- `pumat job publish <exec>`: §22.2 레이아웃의 레코드 번들 + 게시자 서명 `pumat.record.v1` 매니페스트
+  - `record_id = pumat:record:blake3(<매니페스트 payload>)`
+  - job의 publication 플래그(input/rawOutput/parsedOutput/provenance)를 지킴. `input/job.yaml`은 로컬 주석/경로가 있을 수 있어 제외
+  - **private 작업은 게시 거부** (조용히 공개하지 않음, §22.3)
+  - 검색용 요약(화학식·원소·에너지 등)은 부동소수점 금지 규칙에 따라 십진 문자열
+- 레코드 배포: 보유한 모든 노드가 `/pumat/record/1.0.0`으로 제공 + DHT provider record. 가져간 노드는 자동으로 미러가 됨
+- 공지: GossipSub `/pumat/<ns>/records/v1` (검증자에서 서명·public 여부 확인) + `publication.indexers`로 직접 push
+- `pumat record fetch|verify`: 오프라인 검증 (서명, 모든 파일 해시, lease→completion→acceptance 체인과 매니페스트의 결합)
+- `pumat reproduce <record>`: 레코드의 canonical job을 **원래 워커를 제외한** 다른 워커에서 재실행
+  - parsed digest가 같으면 `REPRODUCED_EXACT`, 아니면 에너지·힘 허용오차로 판정 (기본 1e-4 eV, 1e-3 eV/Å)
+  - 비교 결과는 재현 레코드 매니페스트에 서명되어 포함
+- 인덱서/익스플로러(`indexer.enabled: true`): SQLite(스펙은 PostgreSQL, MVP에서는 SQLite로 충분하다고 판단), 검색 페이지, 레코드 페이지(§22.5), REST API, 파일 다운로드
+  - 재빌드 시 동일 결과 재현 (테스트로 확인)
+  - unlisted 레코드는 인덱싱하지 않음
+  - "agreement ≠ scientific correctness" 문구 표시
+- 샌드박스 디스크 워치독: bind mount는 크기 제한을 걸 수 없어 10초마다 scratch+out 용량을 측정해 초과 시 종료 (`resource_exceeded`)
+
+### §58 첫 데모 실제 수행 (이 머신, 실제 QE 컨테이너)
+A(요청자+익스플로러), B·C(워커):
+1. A가 `--peer` 없이 제출 → mDNS로 2개 워커 발견 → B에서 실행 → 완료
+2. 게시 → 익스플로러에 `Si scf −310.569142 eV` 표시
+3. `pumat reproduce` → B 제외, C에서 실행 → `REPRODUCED_EXACT` (ΔE = 0)
+4. 재현 레코드 게시 → 익스플로러 재현성: 실행 2회, `REPRODUCED_EXACT`
+
+### Phase 5 일부
+- `release.yml`: 태그 `v*` 푸시 시 4개 플랫폼 빌드 → `SHA256SUMS` → Sigstore keyless 서명(워크플로 OIDC 신원) → GitHub prerelease
+- `scripts/install.sh`
+  - OS/아키텍처 감지, 체크섬 검증, cosign이 있으면 서명과 서명자 신원(이 repo의 release 워크플로) 검증
+  - Linux root 실행 시 `pumat` 사용자·subuid/subgid·linger·systemd 유닛 생성
+  - 자원 공유는 켜지 않음
+- `deploy/systemd/pumat-agent.service`: 비특권 사용자, `Delegate=yes`(cgroup 위임), 하드닝 옵션
+- `deploy/bootstrap/`: 부트스트랩/relay 노드 설정 예시와 절차 (같은 바이너리, `dhtMode: server`, `relayService: true`)
+- `pumat update check` (설치는 검증하는 설치 스크립트로만, 자동 실행 없음)
+- SECURITY.md / CONTRIBUTING.md / GOVERNANCE.md / CODE_OF_CONDUCT.md
+
+### CI 이슈와 수정
+- e2e 실패: Ubuntu 러너에 Podman이 있어 에이전트가 Podman을 골랐는데 이미지는 Docker로 푸시됨 → e2e 스크립트가 노드의 `runtime.engine`을 사용 엔진으로 고정
+- 부수적으로 Podman 자동 선택이 실제로 동작함을 확인
+
+### 사용자 조치 추가
+| # | 항목 | 이유 |
+|---|---|---|
+| U7 | 첫 릴리스 태그 결정 (`v0.1.0-alpha.1` 등) | 태그를 푸시하면 서명된 릴리스와 설치 스크립트가 동작. 라이선스(U4) 결정 후 권장 |

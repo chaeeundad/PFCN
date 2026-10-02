@@ -20,8 +20,8 @@ nodes do not execute arbitrary user code.
 
 ## Status
 
-Pre-alpha. Phases 0-2 are implemented and Phase 3 is in progress. Nodes run
-a Quantum ESPRESSO job end to end over libp2p:
+Pre-alpha. Phases 0-4 are implemented; Phase 5 (public alpha operations)
+is in progress. Nodes run a Quantum ESPRESSO job end to end over libp2p:
 
 - signed lease → encrypted input upload from the requester's disk
 - sandboxed `pw.x` (rootless-capable container, no network, read-only root, CPU/memory/PID/walltime limits)
@@ -32,7 +32,23 @@ a Quantum ESPRESSO job end to end over libp2p:
 - discovery without a central scheduler: DHT provider records, bootstrap peers, mDNS, hole punching/relay
 - signed solver revocation lists; fuzzed protocol and input decoders
 
-Remaining hardening (Phase 3) and public scientific records (Phase 4) are next.
+- public scientific records: `pumat job publish`, P2P record mirroring, GossipSub announcements
+- independent reproduction on another worker with signed exact/tolerance comparison (`pumat reproduce`)
+- a disposable explorer/indexer (`indexer.enabled: true`) with search, record pages and REST API
+
+Not yet: workspace encryption at rest, Sigstore verification of solver
+manifests, GPU, institutional federations (see docs/DEVLOG.md).
+
+## Install
+
+Once a release is tagged (see docs/DEVLOG.md):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chaeeundad/PFCN/main/scripts/install.sh | sh
+```
+
+The installer verifies the release checksum and, if `cosign` is installed,
+its Sigstore signature. It never turns resource sharing on.
 
 ## Build
 
@@ -112,7 +128,9 @@ internal/{canonical,contentid,envelope,identity}  signing and identifiers
 internal/{bundle,seal}                 chunked bundles and result sealing
 internal/{job,solver,solver/qe}        job schema, solver trust, QE adapter
 internal/{sandbox,store,protocol,pb}   container runtime, SQLite state, wire protocol
+internal/{record,indexer}              public records, reproduction, explorer
 proto/                 protobuf wire framing
+deploy/                systemd unit, bootstrap/relay node setup
 solvers/quantum-espresso  solver image and manifest templates
 examples/              example jobs
 docs/                  specification, ADRs, development log

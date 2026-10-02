@@ -1,0 +1,34 @@
+# Pumat node agent (spec §42.3). Runs as the unprivileged `pumat` user.
+# Container engine: rootless Podman is recommended. If you use Docker instead,
+# adding `pumat` to the docker group is root-equivalent; prefer rootless Docker.
+[Unit]
+Description=Pumat Federated Computing Network agent
+Documentation=https://github.com/chaeeundad/PFCN
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pumat
+Group=pumat
+Environment=PUMAT_HOME=/var/lib/pumat
+# Rootless Podman needs the user's runtime dir (installer enables lingering).
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+ExecStart=/usr/local/bin/pumat agent
+# SIGTERM stops new work immediately (§5.3).
+KillSignal=SIGTERM
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=10
+# Rootless containers need cgroup v2 controllers delegated (§17.2).
+Delegate=yes
+# Hardening. The agent needs its home and the container engine's state.
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+ReadWritePaths=/var/lib/pumat
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

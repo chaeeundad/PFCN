@@ -1,0 +1,49 @@
+name: release
+
+# Builds pumat for each platform, writes SHA256SUMS, signs it keylessly with
+# Sigstore (GitHub OIDC identity of this workflow), and creates a GitHub
+# release. scripts/install.sh verifies the checksums and, when cosign is
+# installed, the signature and signer identity (spec §42).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: test
+        run: go test ./...
+      - name: build
+        run: |
+          mkdir -p dist
+          for t in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${t%/*}; arch=${t#*/}
+            d=pumat_${GITHUB_REF_NAME}_${os}_${arch}
+            mkdir -p "$d"
+            GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -trimpath -buildvcs=false \
+              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o "$d/pumat" ./cmd/pumat
+            cp README.md "$d/"
+            tar -czf "dist/$d.tar.gz" "$d"
+          done
+          (cd dist && sha256sum *.tar.gz > SHA256SUMS)
+          cat dist/SHA256SUMS
+      - uses: sigstore/cosign-installer@v3
+      - name: sign checksums (keyless)
+        run: cosign sign-blob --yes --bundle dist/SHA256SUMS.sigstore.json dist/SHA256SUMS
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" \
+            --notes "Pre-alpha. Verify with scripts/install.sh or: cosign verify-blob --bundle SHA256SUMS.sigstore.json --certificate-identity-regexp '^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v' --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS" \
+            --prerelease

@@ -1,0 +1,41 @@
+# Bootstrap + relay node configuration (spec §9, §46).
+namespace: /pumat/public/v1
+listen:
+  - /ip4/0.0.0.0/udp/4001/quic-v1
+  - /ip4/0.0.0.0/tcp/4001
+  - /ip6/::/udp/4001/quic-v1
+  - /ip6/::/tcp/4001
+network:
+  bootstrap: []          # other bootstrap nodes, if any
+  dhtMode: server
+  relayService: true
+  staticRelays: []
+  mdns: false
+resources:
+  cpu: 1
+  memory: 1GiB
+  disk: 10GiB
+jobs:
+  maxWalltime: 1h
+  maxConcurrent: 1
+  maxResultRetention: 72h
+  maxInputBytes: 1GiB
+  maxOutputBytes: 1GiB
+  acceptVisibility: [public]
+trust:
+  solverSigners:
+    - 12D3KooWNmqy7RJXuA8VKQDgfcWhhAtiVPpwXGRQA3K2VvaDRKeP
+  revocationURL: ""
+  requireRevocationList: false
+solvers:
+  allow: [quantum-espresso]
+runtime:
+  engine: auto
+requester:
+  resultsDir: /var/lib/pumat/results
+  pseudoDirs: []
+publication:
+  indexers: []
+indexer:
+  enabled: false
+  http: 127.0.0.1:8080
