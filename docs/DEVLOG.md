@@ -198,3 +198,11 @@ A(요청자+익스플로러), B·C(워커):
   - GitHub Pages(`main` 브랜치 `/docs`)로 게시: https://chaeeundad.github.io/PFCN/slides/
   - 내용: 문제 → 품앗이 아이디어 → 동작 흐름 → 안전 설계 → detached 경험 → 영수증 → 재현 → 네트워크 효과 → 실측 결과·진행 상황 → 참여 방법
   - 수치는 실제 측정값(Si SCF 4초, linux/arm64·amd64 실측, 재현 ΔE 0)만 사용
+
+---
+
+## 2026-10-02 — 바로 시작하기 문서
+
+- `docs/QUICKSTART.md` (한국어): 역할 선택 → 설치 → 초기화 → 워커 기여 → 첫 계산 → detached → 결과 구조 → 내 job 작성 → 공개·재현·익스플로러 → 다른 네트워크 연결 → 문제 해결
+- 문서의 명령 순서를 새 노드 2개에서 그대로 실행해 확인 (submit --detach → job fetch → COMPLETED, receipt verify 통과)
+- 첫 릴리스 전까지는 소스 빌드(Go 1.27+) 안내. 릴리스 후 설치 스크립트로 교체 예정 (U7)
