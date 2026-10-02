@@ -3,7 +3,7 @@
 Pumat 노드를 설치해서 **계산 자원을 기여**하거나 **계산을 맡기는** 데까지 15분 안에 끝내는 안내입니다.
 개념 소개는 [소개 슬라이드](https://chaeeundad.github.io/PFCN/slides/)를, 프로토콜 전체는 [스펙](architecture.md)을 보세요.
 
-> 상태: pre-alpha. 공개 부트스트랩 노드가 아직 없어서 **같은 LAN 안에서는 자동으로 서로를 찾고**, 다른 네트워크의 노드는 주소(`--peer`)로 연결합니다.
+> 상태: pre-alpha (`v0.1.0-alpha.1`). 공개 부트스트랩 노드가 아직 없어서 **같은 LAN 안에서는 자동으로 서로를 찾고**, 다른 네트워크의 노드는 주소(`--peer`)로 연결합니다.
 
 ## 0. 역할 고르기
 
@@ -16,27 +16,46 @@ Pumat 노드를 설치해서 **계산 자원을 기여**하거나 **계산을 �
 
 ## 1. 설치
 
-현재는 소스에서 빌드합니다. [Go 1.27 이상](https://go.dev/dl/)이 필요합니다.
-
-```bash
-git clone https://github.com/chaeeundad/PFCN.git
-cd PFCN
-make build                          # bin/pumat 생성
-sudo install bin/pumat /usr/local/bin/pumat
-pumat version
-```
-
-첫 릴리스가 나오면 서명 검증까지 하는 설치 스크립트로 바뀝니다.
+미리 빌드된 바이너리를 설치합니다. Go도 컴파일도 필요 없습니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chaeeundad/PFCN/main/scripts/install.sh | sh
+pumat version
 ```
+
+- 설치 스크립트는 [릴리스](https://github.com/chaeeundad/PFCN/releases)의 체크섬을 확인합니다. [`cosign`](https://docs.sigstore.dev/cosign/system_config/installation/)이 있으면 서명과 서명자(이 저장소의 릴리스 워크플로)도 확인합니다.
+- 서명 확인을 필수로 하려면 `REQUIRE_SIGNATURE=1`을 붙입니다.
+- Linux에서 `sudo`로 실행하면 전용 `pumat` 사용자와 systemd 유닛도 만듭니다. 시작은 하지 않습니다.
+- 자원 공유는 `pumat on`을 직접 실행하기 전까지 켜지지 않습니다.
+
+솔버 정보와 예제를 받습니다.
+
+```bash
+mkdir -p ~/pumat-start && cd ~/pumat-start
+R=https://raw.githubusercontent.com/chaeeundad/PFCN/main
+curl -fsSLO $R/solvers/quantum-espresso/manifest.signed.json
+curl -fsSLO $R/examples/qe-si-scf/job.yaml
+curl -fsSLO $R/examples/qe-si-scf/silicon.cif
+curl -fsSLO $R/examples/qe-si-scf/fetch-pseudo.sh && chmod +x fetch-pseudo.sh
+```
+
+<details><summary>소스에서 빌드하기 (개발자용)</summary>
+
+[Go 1.27 이상](https://go.dev/dl/)이 필요합니다.
+
+```bash
+git clone https://github.com/chaeeundad/PFCN.git && cd PFCN
+make build && sudo install bin/pumat /usr/local/bin/pumat
+```
+
+소스 트리에서는 아래 명령의 파일 경로를 `solvers/quantum-espresso/manifest.signed.json`, `examples/qe-si-scf/...`로 바꿔 쓰면 됩니다.
+</details>
 
 ## 2. 노드 초기화 (워커·요청자 공통)
 
 ```bash
 pumat init
-pumat solver add solvers/quantum-espresso/manifest.signed.json
+pumat solver add manifest.signed.json
 ```
 
 - `init`은 `~/.pumat/`에 노드 신원(Ed25519 키)과 설정 파일을 만듭니다. 기본값은 **CPU 코어 절반, 메모리 1/4 제공, 공유 꺼짐**입니다.
@@ -89,8 +108,8 @@ pumat on
 예제는 실리콘(Si) 2원자 SCF 계산입니다.
 
 ```bash
-examples/qe-si-scf/fetch-pseudo.sh             # 의사퍼텐셜 다운로드 + 해시 검증
-pumat submit examples/qe-si-scf/job.yaml
+./fetch-pseudo.sh                 # 의사퍼텐셜 다운로드 + 해시 검증
+pumat submit job.yaml
 ```
 
 ```text
@@ -108,7 +127,7 @@ Total energy:  -310.569142 eV
 - **다른 네트워크**: 워커의 `pumat status`에 나온 주소를 넣습니다. 워커 쪽 UDP/TCP 4001 포트가 열려 있어야 합니다.
 
   ```bash
-  pumat submit examples/qe-si-scf/job.yaml --peer /ip4/203.0.113.10/udp/4001/quic-v1/p2p/12D3KooW...
+  pumat submit job.yaml --peer /ip4/203.0.113.10/udp/4001/quic-v1/p2p/12D3KooW...
   ```
 
 ### 오래 걸리는 계산: 올려두고 닫기
@@ -207,7 +226,7 @@ network:
 | `cannot reach the local agent` | 에이전트가 꺼져 있음 → `pumat agent &` |
 | `no workers found for this solver` | 같은 LAN에 `on` 상태 워커가 없음 → `--peer`로 주소 지정, 또는 `network.bootstrap` 설정 |
 | `worker is paused` / `busy` | 워커가 `off`이거나 동시 작업 한도에 걸림 |
-| `solver manifest ... is not installed` | `pumat solver add solvers/quantum-espresso/manifest.signed.json` |
+| `solver manifest ... is not installed` | `pumat solver add manifest.signed.json` (1단계에서 받은 파일) |
 | `pseudopotential ... digest mismatch` | 파일이 job에 고정한 digest와 다름 → 파일 확인 또는 digest 갱신 |
 | `parameter "..." is not in the allowlist` | 허용되지 않은 QE 파라미터 (스펙 §39.1) |
 | `new requesters are limited to ...` | 처음 쓰는 워커의 walltime 제한 → walltime 줄이기 |

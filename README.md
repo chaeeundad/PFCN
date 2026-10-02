@@ -43,7 +43,8 @@ manifests, GPU, institutional federations (see docs/DEVLOG.md).
 
 ## Install
 
-Once a release is tagged (see docs/DEVLOG.md):
+Prebuilt, signed binaries for Linux and macOS (amd64/arm64) are on the
+[releases page](https://github.com/chaeeundad/PFCN/releases):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chaeeundad/PFCN/main/scripts/install.sh | sh
