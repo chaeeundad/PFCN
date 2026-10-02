@@ -27,6 +27,8 @@ jobs:
           got=$(sha256sum internal/parser/artifacts/qe-parser.wasm | cut -d' ' -f1)
           echo "committed=$want rebuilt=$got"
           test "$want" = "$got"
+      - name: dependency vulnerability scan
+        run: ./scripts/vulncheck.sh
       - name: cross-compile
         run: |
           for t in linux/amd64 linux/arm64 darwin/arm64 darwin/amd64; do

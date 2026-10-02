@@ -260,6 +260,16 @@ func doctorCmd() *cobra.Command {
 				defer cancel()
 				plat, err := rt.Platform(ctx)
 				check("runtime platform", err, plat)
+				if rt.Name() == "docker" {
+					out, _ := exec.CommandContext(ctx, "docker", "info", "--format", "{{.SecurityOptions}}").Output()
+					if strings.Contains(string(out), "rootless") {
+						check("rootless engine", nil, "rootless Docker")
+					} else {
+						fmt.Printf("warn  %-22s %s\n", "rootless engine", "Docker daemon runs as root; prefer rootless Podman or rootless Docker (§17.2)")
+					}
+				} else {
+					check("rootless engine", nil, "Podman (rootless when run as an unprivileged user)")
+				}
 				if image != "" {
 					out, err := exec.CommandContext(ctx, rt.Name(), "run", "--rm", "--network", "none", "--read-only",
 						"--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--entrypoint", "/bin/sh", image,

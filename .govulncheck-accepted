@@ -1,0 +1,8 @@
+# Reachable vulnerabilities accepted with justification. Review on every release.
+#
+# GO-2024-3218  Kademlia DHT provider-record censorship via Sybil nodes (no fix exists;
+#               inherent to Kademlia). Pumat uses DHT provider records only as discovery
+#               hints: a fresh signed capability query is authoritative, and mDNS,
+#               explicit --peer addresses and configured bootstrap peers remain available.
+#               Impact is limited to discovery availability, not integrity or confidentiality.
+GO-2024-3218

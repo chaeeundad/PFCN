@@ -27,6 +27,14 @@ installer/update verification bypasses.
   `workspace_encryption: false`.
 - GPU jobs are not supported.
 
+## Accepted dependency risks
+
+CI runs govulncheck (`scripts/vulncheck.sh`) and fails on reachable
+vulnerabilities not listed with a justification in `.govulncheck-accepted`.
+Currently accepted: GO-2024-3218 (Kademlia DHT provider censorship), which
+affects only discovery availability; capability checks, mDNS, `--peer` and
+bootstrap peers remain.
+
 ## Trust roots
 
 The project solver signing key (signer ID
