@@ -62,6 +62,9 @@ type Network struct {
 	StaticRelays []string `yaml:"staticRelays"`
 	// MDNS discovers peers on the local network.
 	MDNS bool `yaml:"mdns"`
+	// Announce replaces the advertised addresses, e.g. the public IP of a
+	// cloud VM behind 1:1 NAT (AWS, Lightsail). Leave empty to auto-detect.
+	Announce []string `yaml:"announce"`
 }
 
 type Resources struct {

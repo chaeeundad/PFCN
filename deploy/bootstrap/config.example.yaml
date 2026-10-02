@@ -11,6 +11,10 @@ network:
   relayService: true
   staticRelays: []
   mdns: false
+  # Cloud VMs behind 1:1 NAT (AWS/Lightsail) must announce their public IP:
+  announce: []
+  #  - /ip4/<public-ip>/udp/4001/quic-v1
+  #  - /ip4/<public-ip>/tcp/4001
 resources:
   cpu: 1
   memory: 1GiB

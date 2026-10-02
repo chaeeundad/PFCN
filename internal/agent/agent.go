@@ -248,6 +248,17 @@ func (a *Agent) Start(parent context.Context) error {
 	} else if len(relays) > 0 {
 		opts = append(opts, libp2p.EnableAutoRelayWithStaticRelays(relays))
 	}
+	if len(a.cfg.Network.Announce) > 0 {
+		var announce []multiaddr.Multiaddr
+		for _, s := range a.cfg.Network.Announce {
+			ma, err := multiaddr.NewMultiaddr(s)
+			if err != nil {
+				return fmt.Errorf("network.announce: %w", err)
+			}
+			announce = append(announce, ma)
+		}
+		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr { return announce }))
+	}
 	if a.cfg.Network.RelayService {
 		// Bounded reservations (§9.4); bulk transfers should use direct paths.
 		opts = append(opts, libp2p.EnableRelayService(), libp2p.EnableNATService())
