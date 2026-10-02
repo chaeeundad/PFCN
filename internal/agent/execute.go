@@ -43,7 +43,8 @@ func (a *Agent) startExecution(execID string) {
 			a.mu.Unlock()
 			cancel()
 		}()
-		if err := a.runExecution(ctx, execID); err != nil {
+		if err := a.runExecution(ctx, execID); err != nil && ctx.Err() == nil {
+			// (A cancelled run already recorded CANCELLED; only cleanup remains.)
 			a.log.Warn("execution failed", "exec", execID, "err", err)
 			msg := err.Error()
 			if terr := a.store.Transition(execID, []string{store.StateRunning}, store.StateFailed, store.Update{Error: &msg}, nil); terr != nil {

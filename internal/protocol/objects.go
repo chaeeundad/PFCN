@@ -20,6 +20,7 @@ const (
 	SchemaCompletion   = "pumat.receipt.completion.v1"
 	SchemaAcceptance   = "pumat.receipt.acceptance.v1"
 	SchemaEvent        = "pumat.event.v1"
+	SchemaCancel       = "pumat.cancel.v1"
 	execIDSchema       = "pumat.exec.v1"
 )
 
@@ -170,6 +171,13 @@ type Completion struct {
 	ResourceClaim        ResourceClaim `json:"resource_claim"`
 	StartedAt            string        `json:"started_at"`
 	FinishedAt           string        `json:"finished_at"`
+}
+
+// Cancel is a requester-signed cancellation of an execution before SEALED.
+type Cancel struct {
+	Schema   string `json:"schema"`
+	ExecID   string `json:"exec_id"`
+	IssuedAt string `json:"issued_at"`
 }
 
 // Verdicts of an acceptance.

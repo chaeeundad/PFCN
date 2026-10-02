@@ -383,3 +383,45 @@ func TestRevokedSolverIsRefused(t *testing.T) {
 		}
 	}
 }
+
+func TestCancelRunningJob(t *testing.T) {
+	n := setup(t)
+	n.fake.Delay = time.Minute
+	ctx := n.start(t)
+	n.worker.SetMode(ModeAvailable)
+	res, err := n.requester.Submit(ctx, SubmitRequest{JobPath: n.jobPath, Peer: n.worker.Addrs(), Detach: true}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, n.worker, res.ExecID, store.StateRunning, 10*time.Second)
+	if err := n.requester.Cancel(ctx, res.ExecID); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, n.requester, res.ExecID, store.StateCancelled, 5*time.Second)
+	waitState(t, n.worker, res.ExecID, store.StateCancelled, 5*time.Second)
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(n.worker.paths.ExecDir(res.ExecID)); os.IsNotExist(err) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if _, err := os.Stat(n.worker.paths.ExecDir(res.ExecID)); !os.IsNotExist(err) {
+		t.Fatal("worker workspace must be removed after cancellation")
+	}
+	if err := n.requester.Cancel(ctx, res.ExecID); err == nil {
+		t.Fatal("cancelling twice must fail on the requester")
+	}
+}
+
+func TestNewRequesterWalltimeCap(t *testing.T) {
+	n := setup(t)
+	ctx := n.start(t)
+	n.worker.SetMode(ModeAvailable)
+	data, _ := os.ReadFile(n.jobPath)
+	os.WriteFile(n.jobPath, []byte(strings.Replace(string(data), "walltime: 10m", "walltime: 3h", 1)), 0o644)
+	_, err := n.requester.Submit(ctx, SubmitRequest{JobPath: n.jobPath, Peer: n.worker.Addrs()}, nil)
+	if err == nil || !strings.Contains(err.Error(), "new requesters") {
+		t.Fatalf("expected new-requester cap, got %v", err)
+	}
+}

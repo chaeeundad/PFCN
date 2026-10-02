@@ -47,6 +47,7 @@ message Frame {
     RecordRequest record_request = 17;
     SignedEnvelope record_manifest = 18;    // pumat.record.v1, publisher-signed
     SignedEnvelope announcement = 19;       // pumat.publication.v1
+    SignedEnvelope cancel = 20;             // pumat.cancel.v1, requester-signed (on /pumat/result)
   }
 }
 

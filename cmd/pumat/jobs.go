@@ -137,6 +137,18 @@ func jobCmd() *cobra.Command {
 	cmd.AddCommand(list)
 	cmd.AddCommand(publishCmd())
 	cmd.AddCommand(&cobra.Command{
+		Use:   "cancel <exec-id>",
+		Short: "Cancel an execution that has not been sealed yet",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			if err := newClient().post("/v1/jobs/"+args[0]+"/cancel", nil, nil); err != nil {
+				return err
+			}
+			fmt.Println("Cancelled. The worker stopped the job and deleted its workspace.")
+			return nil
+		},
+	})
+	cmd.AddCommand(&cobra.Command{
 		Use:   "status <exec-id>",
 		Short: "Show the last known state of an execution",
 		Args:  cobra.ExactArgs(1),

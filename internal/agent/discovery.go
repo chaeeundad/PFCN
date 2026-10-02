@@ -20,6 +20,7 @@ import (
 
 	"github.com/chaeeundad/PFCN/internal/protocol"
 	"github.com/chaeeundad/PFCN/internal/solver"
+	"github.com/chaeeundad/PFCN/internal/store"
 	"github.com/chaeeundad/PFCN/pkg/contentid"
 )
 
@@ -275,9 +276,15 @@ func (a *Agent) findCandidates(ctx context.Context, sv *solver.Verified, cores, 
 	if len(out) == 0 {
 		return nil, fmt.Errorf("%d workers found, none currently eligible (busy, paused, or too small for this job)", len(ids))
 	}
+	// Rank: direct connectivity, then local reliability (§35.2), then capacity.
+	stats, _ := a.store.Stats(store.RoleRequester)
+	rel := func(id peer.ID) float64 { return stats[store.RoleRequester+"|"+id.String()].Reliability() }
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].direct != out[j].direct {
 			return out[i].direct
+		}
+		if ri, rj := rel(out[i].id), rel(out[j].id); ri != rj {
+			return ri > rj
 		}
 		return out[i].cap.CPU.AvailableCores > out[j].cap.CPU.AvailableCores
 	})

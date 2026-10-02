@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Fake is an in-process runtime for tests. It copies Outputs into the output
@@ -14,6 +15,7 @@ type Fake struct {
 	Outputs      map[string][]byte
 	ExitCode     int
 	Images       map[string]bool
+	Delay        time.Duration // simulated runtime; honours cancellation
 
 	mu   sync.Mutex
 	Runs []Spec
@@ -39,10 +41,17 @@ func (f *Fake) EnsureImage(_ context.Context, image string) error {
 	return nil
 }
 
-func (f *Fake) Run(_ context.Context, s Spec) (Result, error) {
+func (f *Fake) Run(ctx context.Context, s Spec) (Result, error) {
 	f.mu.Lock()
 	f.Runs = append(f.Runs, s)
 	f.mu.Unlock()
+	if f.Delay > 0 {
+		select {
+		case <-ctx.Done():
+			return Result{}, ctx.Err()
+		case <-time.After(f.Delay):
+		}
+	}
 	if _, err := os.Stat(filepath.Join(s.InputDir, "pw.in")); err != nil {
 		return Result{}, err
 	}

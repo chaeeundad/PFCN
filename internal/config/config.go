@@ -77,6 +77,10 @@ type Jobs struct {
 	MaxInputBytes      string   `yaml:"maxInputBytes"`
 	MaxOutputBytes     string   `yaml:"maxOutputBytes"`
 	AcceptVisibility   []string `yaml:"acceptVisibility"`
+	// NewRequesterMaxWalltime caps jobs from requesters with fewer than
+	// TrustedAfter completed receipts on this node (§35.3).
+	NewRequesterMaxWalltime string `yaml:"newRequesterMaxWalltime"`
+	TrustedAfter            int    `yaml:"trustedAfter"`
 }
 
 type Trust struct {
@@ -112,6 +116,8 @@ type Policy struct {
 	MaxInputBytes             int64
 	MaxOutputBytes            int64
 	AcceptVisibility          []string
+	NewRequesterMaxWalltime   int64
+	TrustedAfter              int
 }
 
 // DefaultBootstrap lists project-operated bootstrap peers. It is empty until
@@ -132,7 +138,8 @@ func Default(totalCores int, totalMemory int64) *Config {
 		Jobs: Jobs{
 			MaxWalltime: "6h", MaxConcurrent: 1, MaxResultRetention: "72h",
 			MaxInputBytes: "4GiB", MaxOutputBytes: "10GiB",
-			AcceptVisibility: []string{job.VisibilityPublic, job.VisibilityUnlisted, job.VisibilityPrivate},
+			AcceptVisibility:        []string{job.VisibilityPublic, job.VisibilityUnlisted, job.VisibilityPrivate},
+			NewRequesterMaxWalltime: "2h", TrustedAfter: 3,
 		},
 		Trust:     Trust{SolverSigners: []string{ProjectSolverSigner}},
 		Solvers:   Solvers{Allow: []string{"quantum-espresso"}},
@@ -204,6 +211,13 @@ func (c *Config) Policy() (*Policy, error) {
 	if p.MaxWalltimeSeconds, err = job.ParseDuration(c.Jobs.MaxWalltime); err != nil {
 		return nil, fmt.Errorf("jobs.maxWalltime: %w", err)
 	}
+	p.NewRequesterMaxWalltime = p.MaxWalltimeSeconds
+	if c.Jobs.NewRequesterMaxWalltime != "" {
+		if p.NewRequesterMaxWalltime, err = job.ParseDuration(c.Jobs.NewRequesterMaxWalltime); err != nil {
+			return nil, fmt.Errorf("jobs.newRequesterMaxWalltime: %w", err)
+		}
+	}
+	p.TrustedAfter = c.Jobs.TrustedAfter
 	if p.MaxResultRetentionSeconds, err = job.ParseDuration(c.Jobs.MaxResultRetention); err != nil {
 		return nil, fmt.Errorf("jobs.maxResultRetention: %w", err)
 	}

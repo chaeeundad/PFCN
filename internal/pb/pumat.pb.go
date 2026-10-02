@@ -222,6 +222,7 @@ type Frame struct {
 	//	*Frame_RecordRequest
 	//	*Frame_RecordManifest
 	//	*Frame_Announcement
+	//	*Frame_Cancel
 	Body          isFrame_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -435,6 +436,15 @@ func (x *Frame) GetAnnouncement() *SignedEnvelope {
 	return nil
 }
 
+func (x *Frame) GetCancel() *SignedEnvelope {
+	if x != nil {
+		if x, ok := x.Body.(*Frame_Cancel); ok {
+			return x.Cancel
+		}
+	}
+	return nil
+}
+
 type isFrame_Body interface {
 	isFrame_Body()
 }
@@ -515,6 +525,10 @@ type Frame_Announcement struct {
 	Announcement *SignedEnvelope `protobuf:"bytes,19,opt,name=announcement,proto3,oneof"` // pumat.publication.v1
 }
 
+type Frame_Cancel struct {
+	Cancel *SignedEnvelope `protobuf:"bytes,20,opt,name=cancel,proto3,oneof"` // pumat.cancel.v1, requester-signed (on /pumat/result)
+}
+
 func (*Frame_Error) isFrame_Body() {}
 
 func (*Frame_CapabilityRequest) isFrame_Body() {}
@@ -552,6 +566,8 @@ func (*Frame_RecordRequest) isFrame_Body() {}
 func (*Frame_RecordManifest) isFrame_Body() {}
 
 func (*Frame_Announcement) isFrame_Body() {}
+
+func (*Frame_Cancel) isFrame_Body() {}
 
 // /pumat/capability/1.0.0
 type CapabilityRequest struct {
@@ -1284,7 +1300,7 @@ const file_pumat_proto_rawDesc = "" +
 	"\x03sig\x18\x03 \x01(\fR\x03sig\"5\n" +
 	"\x05Error\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xe5\b\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\x99\t\n" +
 	"\x05Frame\x12'\n" +
 	"\x05error\x18\x01 \x01(\v2\x0f.pumat.v1.ErrorH\x00R\x05error\x12L\n" +
 	"\x12capability_request\x18\x02 \x01(\v2\x1b.pumat.v1.CapabilityRequestH\x00R\x11capabilityRequest\x12:\n" +
@@ -1312,7 +1328,8 @@ const file_pumat_proto_rawDesc = "" +
 	"ack_result\x18\x10 \x01(\v2\x13.pumat.v1.AckResultH\x00R\tackResult\x12@\n" +
 	"\x0erecord_request\x18\x11 \x01(\v2\x17.pumat.v1.RecordRequestH\x00R\rrecordRequest\x12C\n" +
 	"\x0frecord_manifest\x18\x12 \x01(\v2\x18.pumat.v1.SignedEnvelopeH\x00R\x0erecordManifest\x12>\n" +
-	"\fannouncement\x18\x13 \x01(\v2\x18.pumat.v1.SignedEnvelopeH\x00R\fannouncementB\x06\n" +
+	"\fannouncement\x18\x13 \x01(\v2\x18.pumat.v1.SignedEnvelopeH\x00R\fannouncement\x122\n" +
+	"\x06cancel\x18\x14 \x01(\v2\x18.pumat.v1.SignedEnvelopeH\x00R\x06cancelB\x06\n" +
 	"\x04body\"1\n" +
 	"\x11CapabilityRequest\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\"\x85\x01\n" +
@@ -1419,15 +1436,16 @@ var file_pumat_proto_depIdxs = []int32{
 	16, // 17: pumat.v1.Frame.record_request:type_name -> pumat.v1.RecordRequest
 	0,  // 18: pumat.v1.Frame.record_manifest:type_name -> pumat.v1.SignedEnvelope
 	0,  // 19: pumat.v1.Frame.announcement:type_name -> pumat.v1.SignedEnvelope
-	0,  // 20: pumat.v1.LeaseRequest.request:type_name -> pumat.v1.SignedEnvelope
-	0,  // 21: pumat.v1.LeaseRequest.solver_manifest:type_name -> pumat.v1.SignedEnvelope
-	0,  // 22: pumat.v1.Status.completion:type_name -> pumat.v1.SignedEnvelope
-	0,  // 23: pumat.v1.Ack.acceptance:type_name -> pumat.v1.SignedEnvelope
-	24, // [24:24] is the sub-list for method output_type
-	24, // [24:24] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	0,  // 20: pumat.v1.Frame.cancel:type_name -> pumat.v1.SignedEnvelope
+	0,  // 21: pumat.v1.LeaseRequest.request:type_name -> pumat.v1.SignedEnvelope
+	0,  // 22: pumat.v1.LeaseRequest.solver_manifest:type_name -> pumat.v1.SignedEnvelope
+	0,  // 23: pumat.v1.Status.completion:type_name -> pumat.v1.SignedEnvelope
+	0,  // 24: pumat.v1.Ack.acceptance:type_name -> pumat.v1.SignedEnvelope
+	25, // [25:25] is the sub-list for method output_type
+	25, // [25:25] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_pumat_proto_init() }
@@ -1455,6 +1473,7 @@ func file_pumat_proto_init() {
 		(*Frame_RecordRequest)(nil),
 		(*Frame_RecordManifest)(nil),
 		(*Frame_Announcement)(nil),
+		(*Frame_Cancel)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

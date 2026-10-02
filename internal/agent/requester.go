@@ -828,3 +828,51 @@ func shortPeer(p peer.ID) string {
 	}
 	return s[:6] + "..." + s[len(s)-4:]
 }
+
+// Cancel asks the worker to stop an execution that is not sealed yet.
+func (a *Agent) Cancel(ctx context.Context, execID string) error {
+	exec, err := a.store.Find(execID)
+	if err != nil {
+		return err
+	}
+	if exec.Role != store.RoleRequester {
+		return errors.New("only the requester can cancel; workers use `pumat off`")
+	}
+	switch exec.State {
+	case store.StateRequested, store.StateLeased, store.StateInputTransfer, store.StateRunning:
+	default:
+		return fmt.Errorf("execution is %s and can no longer be cancelled", exec.State)
+	}
+	env, err := envelope.Sign(a.id, protocol.SchemaCancel, protocol.Cancel{Schema: protocol.SchemaCancel, ExecID: exec.ExecID, IssuedAt: protocol.Now(time.Now())})
+	if err != nil {
+		return err
+	}
+	worker, err := a.connect(ctx, exec.PeerAddrs)
+	if err != nil {
+		return err
+	}
+	s, err := a.host.NewStream(ctx, worker, protocol.ProtoResult)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	s.SetDeadline(time.Now().Add(30 * time.Second))
+	c := protocol.NewConn(s)
+	if err := c.Send(&pb.Frame{Body: &pb.Frame_Cancel{Cancel: protocol.ToPB(env)}}); err != nil {
+		return err
+	}
+	f, err := c.Recv()
+	if err != nil {
+		return err
+	}
+	if f.GetAckResult() == nil || !f.GetAckResult().Ok {
+		return errors.New("worker did not confirm the cancellation")
+	}
+	msg := "cancelled by requester"
+	if err := a.store.Transition(exec.ExecID, nil, store.StateCancelled, store.Update{Error: &msg}, nil); err != nil {
+		return err
+	}
+	os.Remove(a.recipientKeyPath(exec.ExecID))
+	os.RemoveAll(a.paths.ExecDir(exec.ExecID))
+	return nil
+}

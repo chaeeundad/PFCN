@@ -135,6 +135,25 @@ func (a *Agent) ServeAPI(ctx context.Context) error {
 		writeJSON(w, 200, res)
 	})
 	mux.HandleFunc("POST /v1/reproduce", a.apiReproduce)
+	mux.HandleFunc("GET /v1/reputation", func(w http.ResponseWriter, _ *http.Request) {
+		stats, err := a.store.Stats("")
+		if err != nil {
+			writeErr(w, 500, err)
+			return
+		}
+		out := []*store.PeerStats{}
+		for _, s := range stats {
+			out = append(out, s)
+		}
+		writeJSON(w, 200, out)
+	})
+	mux.HandleFunc("POST /v1/jobs/{id}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		if err := a.Cancel(r.Context(), r.PathValue("id")); err != nil {
+			writeErr(w, 409, err)
+			return
+		}
+		writeJSON(w, 200, map[string]string{"state": store.StateCancelled})
+	})
 	mux.HandleFunc("POST /v1/records/{id}/fetch", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Minute)
 		defer cancel()

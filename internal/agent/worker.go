@@ -189,6 +189,15 @@ func (a *Agent) evaluateLeaseRequest(remote string, lr *pb.LeaseRequest) (*envel
 	case r.ResultRetentionSeconds < 300:
 		return nil, nil, errors.New("result retention must be at least 5 minutes")
 	}
+	if pol.TrustedAfter > 0 && r.MaxWalltimeSeconds > pol.NewRequesterMaxWalltime {
+		stats, err := a.store.Stats(store.RoleWorker)
+		if err != nil {
+			return nil, nil, err
+		}
+		if st := stats[store.RoleWorker+"|"+remote]; st == nil || st.Completed < pol.TrustedAfter {
+			return nil, nil, fmt.Errorf("new requesters are limited to %ds walltime on this node until %d jobs complete here", pol.NewRequesterMaxWalltime, pol.TrustedAfter)
+		}
+	}
 	if _, err := seal.ParsePublic(r.ResultRecipientKey); err != nil {
 		return nil, nil, err
 	}
@@ -381,6 +390,14 @@ func (a *Agent) handleResult(s network.Stream) {
 				c.SendError(protocol.ErrCodeInvalid, err)
 				return
 			}
+		case f.GetCancel() != nil:
+			if err := a.acceptCancel(f.GetCancel(), remote); err != nil {
+				c.SendError(protocol.ErrCodeRejected, err)
+				return
+			}
+			if err := c.Send(&pb.Frame{Body: &pb.Frame_AckResult{AckResult: &pb.AckResult{Ok: true}}}); err != nil {
+				return
+			}
 		case f.GetAck() != nil:
 			if err := a.acceptAck(f.GetAck(), remote); err != nil {
 				c.SendError(protocol.ErrCodeInvalid, err)
@@ -569,4 +586,47 @@ func (a *Agent) sweep() {
 			}
 		}
 	}
+}
+
+// acceptCancel stops an execution on the requester's signed request.
+func (a *Agent) acceptCancel(p *pb.SignedEnvelope, remote string) error {
+	env, err := protocol.FromPB(p)
+	if err != nil {
+		return err
+	}
+	if err := env.VerifySigners(protocol.SchemaCancel, remote); err != nil {
+		return err
+	}
+	var c protocol.Cancel
+	if err := env.Decode(&c); err != nil {
+		return err
+	}
+	if err := protocol.CheckIssued(c.IssuedAt, time.Now()); err != nil {
+		return err
+	}
+	exec, _, err := a.workerExec(c.ExecID, remote)
+	if err != nil {
+		return err
+	}
+	switch exec.State {
+	case store.StateCancelled:
+		return nil
+	case store.StateLeased, store.StateInputTransfer, store.StateRunning:
+	default:
+		return fmt.Errorf("execution is %s and can no longer be cancelled", exec.State)
+	}
+	msg := "cancelled by requester"
+	if err := a.store.Transition(c.ExecID, []string{exec.State}, store.StateCancelled, store.Update{Error: &msg}, nil); err != nil {
+		return err
+	}
+	a.mu.Lock()
+	stop := a.cancels[c.ExecID]
+	a.mu.Unlock()
+	if stop != nil {
+		stop() // kills the container; startExecution removes the workspace
+	} else {
+		os.RemoveAll(a.paths.ExecDir(c.ExecID))
+	}
+	a.log.Info("execution cancelled", "exec", c.ExecID)
+	return nil
 }

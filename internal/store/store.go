@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -529,4 +530,87 @@ func withFrom(d map[string]any, from string) map[string]any {
 	}
 	out["from"] = from
 	return out
+}
+
+// PeerStats are local reputation dimensions for one peer (§35.1). They are
+// kept separate on purpose; callers derive their own trust from them (§35.2).
+type PeerStats struct {
+	PeerID     string  `json:"peer_id"`
+	Role       string  `json:"role"` // our role in those executions
+	Total      int     `json:"total"`
+	Completed  int     `json:"completed"`
+	Failed     int     `json:"failed"`
+	Rejected   int     `json:"rejected"`
+	Cancelled  int     `json:"cancelled"`
+	Lost       int     `json:"lost_or_expired"`
+	Disputed   int     `json:"disputed"`
+	WallUsage  float64 `json:"decayed_core_seconds"`
+	LastSeenAt string  `json:"last_seen_at"`
+}
+
+// usageTau is the decay constant for weighted usage (§19.4).
+const usageTau = 7 * 24 * time.Hour
+
+// Stats aggregates executions per counterparty for a role ("" = both).
+func (s *Store) Stats(role string) (map[string]*PeerStats, error) {
+	list, err := s.List(role, false)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]*PeerStats{}
+	now := time.Now()
+	for _, e := range list {
+		key := e.Role + "|" + e.PeerID
+		st := out[key]
+		if st == nil {
+			st = &PeerStats{PeerID: e.PeerID, Role: e.Role}
+			out[key] = st
+		}
+		st.Total++
+		switch e.State {
+		case StateCompleted:
+			st.Completed++
+		case StateFailed:
+			st.Failed++
+		case StateRejected, StateExpired:
+			st.Rejected++
+		case StateCancelled:
+			st.Cancelled++
+		case StateWorkerLost, StateResultExpired:
+			st.Lost++
+		}
+		if e.Acceptance != nil {
+			var a struct {
+				Verdict string `json:"verdict"`
+			}
+			if e.Acceptance.Decode(&a) == nil && a.Verdict != "accepted" {
+				st.Disputed++
+			}
+		}
+		if e.Completion != nil {
+			var c struct {
+				ResourceClaim struct {
+					CPUMillicores int64 `json:"cpu_millicores"`
+					WallSeconds   int64 `json:"wall_seconds"`
+				} `json:"resource_claim"`
+			}
+			if json.Unmarshal(e.Completion.Payload, &c) == nil {
+				age := now.Sub(e.UpdatedAt)
+				st.WallUsage += float64(c.ResourceClaim.CPUMillicores) / 1000 * float64(c.ResourceClaim.WallSeconds) * math.Exp(-float64(age)/float64(usageTau))
+			}
+		}
+		if t := e.UpdatedAt.UTC().Format(time.RFC3339); t > st.LastSeenAt {
+			st.LastSeenAt = t
+		}
+	}
+	return out, nil
+}
+
+// Reliability is a simple Laplace-smoothed success ratio used for ranking.
+func (p *PeerStats) Reliability() float64 {
+	if p == nil {
+		return 0.5
+	}
+	bad := p.Failed + p.Lost + p.Disputed
+	return float64(p.Completed+1) / float64(p.Completed+bad+2)
 }
