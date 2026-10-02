@@ -23,117 +23,106 @@ nodes do not execute arbitrary user code.
 
 ## Status
 
-Pre-alpha. Phases 0-4 are implemented; Phase 5 (public alpha operations)
-is in progress. Nodes run a Quantum ESPRESSO job end to end over libp2p:
+Pre-alpha, latest release [`v0.1.0-alpha.3`](https://github.com/chaeeundad/PFCN/releases).
+Verified across the internet: a requester on AWS Singapore found a worker
+behind a home NAT in Korea through the public bootstrap, connected directly
+by hole punching, and completed a Quantum ESPRESSO job in 12.8 s.
 
-- signed lease → encrypted input upload from the requester's disk
-- sandboxed `pw.x` (rootless-capable container, no network, read-only root, CPU/memory/PID/walltime limits)
-- result sealed to a per-execution key; worker plaintext destroyed at sealing
-- requester pulls the sealed result (attached or detached), decrypts, parses locally (WASM parser), signs the receipt
-- bilateral Compute Receipt and signed local event chains
+What works today:
 
-- discovery without a central scheduler: DHT provider records, bootstrap peers, mDNS, hole punching/relay
-- signed solver revocation lists; fuzzed protocol and input decoders
-
-- public scientific records: `pumat job publish`, P2P record mirroring, GossipSub announcements
-- independent reproduction on another worker with signed exact/tolerance comparison (`pumat reproduce`)
-- a disposable explorer/indexer (`indexer.enabled: true`) with search, record pages and REST API
+- **Execution**: signed leases, encrypted input upload from the requester's
+  disk, sandboxed `pw.x` (no network, read-only root, CPU/memory/PID/disk/walltime
+  limits, never as root), results sealed to a per-execution key with worker
+  plaintext destroyed at sealing, attached or detached delivery, cancellation
+- **Provenance**: bilateral Compute Receipts, signed local event chains,
+  requester-side WASM parser with a reproducible digest
+- **Discovery**: no central scheduler: DHT provider records, public
+  bootstrap/relay at `pfcn.pumat.org` (set via DNS `/dnsaddr`), mDNS on the
+  LAN, hole punching with relay fallback for control messages
+- **Trust and safety**: signed solver manifests and revocation lists, local
+  reputation, caps for unknown requesters, fuzzed decoders, govulncheck in CI
+- **Open science**: public records with offline verification, mirroring,
+  independent reproduction with signed comparisons, and the public explorer
+  at [pfcn.pumat.org](https://pfcn.pumat.org)
 
 Not yet: workspace encryption at rest, Sigstore verification of solver
-manifests, GPU, institutional federations (see docs/DEVLOG.md).
+manifests, a second solver, Windows, institutional federations. GPU support
+is out of scope for now. See [docs/DEVLOG.md](docs/DEVLOG.md).
 
-## Install
+## Getting started
 
-Prebuilt, signed binaries for Linux and macOS (amd64/arm64) are on the
-[releases page](https://github.com/chaeeundad/PFCN/releases):
+Full guide (Korean): [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+Install a signed release (Linux or macOS, amd64/arm64). The installer
+verifies the checksum and, when `cosign` is installed, the Sigstore signature.
+It never turns resource sharing on.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chaeeundad/PFCN/main/scripts/install.sh | sh
 ```
 
-The installer verifies the release checksum and, if `cosign` is installed,
-its Sigstore signature. It never turns resource sharing on.
+Every node:
 
-## Build
+```bash
+R=https://raw.githubusercontent.com/chaeeundad/PFCN/main
+curl -fsSLO $R/solvers/quantum-espresso/manifest.signed.json
+pumat init
+pumat solver add manifest.signed.json
+pumat agent &                # or the systemd unit in deploy/systemd
+```
+
+Contribute compute (Linux, or macOS with Docker Desktop/OrbStack; Docker or rootless Podman):
+
+```bash
+pumat doctor --image ghcr.io/chaeeundad/pumat-quantum-espresso@sha256:7ea3d7fb93f904b435071ceb6e3797a4cfc57ec0e848cf124ad43e6c28d18d54
+pumat on
+```
+
+Run a calculation (no container runtime needed):
+
+```bash
+for f in job.yaml silicon.cif fetch-pseudo.sh; do curl -fsSLO $R/examples/qe-si-scf/$f; done
+chmod +x fetch-pseudo.sh && ./fetch-pseudo.sh
+pumat submit job.yaml        # add --detach to close the laptop after the upload
+pumat receipt verify <exec-id>
+pumat job publish <exec-id>  # public jobs only; appears on pfcn.pumat.org
+```
+
+Workers are found through the public bootstrap anywhere on the internet, or
+by mDNS on the same LAN; NAT is handled by hole punching. To target a
+specific worker, pass `--peer <multiaddr>/p2p/<peer-id>` from its `pumat status`.
+
+## Development
 
 Requires Go (version in `go.mod`).
 
 ```bash
 make build        # bin/pumat
 make test         # unit + integration tests (no container needed)
+make race         # with the race detector
+make e2e          # two local nodes, real QE container, local registry (Docker/Podman)
 ```
 
-## Quick start: two nodes on one machine
-
-Requires Docker or Podman in addition to Go. This builds the QE solver image,
-pushes it to a local registry, signs a dev solver manifest, starts two agents
-and runs the Silicon SCF example:
-
-```bash
-make e2e
-```
-
-## Two machines
-
-The QE solver image is published to GHCR (`ghcr.io/chaeeundad/pumat-quantum-espresso`,
-linux/amd64 and linux/arm64) and pinned by the signed manifest
-`solvers/quantum-espresso/manifest.signed.json`. Nodes trust the project
-solver signer by default.
-
-Worker (Linux with Docker or rootless Podman):
-
-```bash
-make build
-./bin/pumat init
-./bin/pumat solver add solvers/quantum-espresso/manifest.signed.json
-./bin/pumat agent &          # or a systemd unit
-./bin/pumat on
-./bin/pumat status           # shows addresses to give requesters
-```
-
-Requester (Linux or macOS; no container runtime needed):
-
-```bash
-make build
-./bin/pumat init
-./bin/pumat solver add solvers/quantum-espresso/manifest.signed.json
-examples/qe-si-scf/fetch-pseudo.sh
-./bin/pumat agent &
-./bin/pumat submit examples/qe-si-scf/job.yaml
-```
-
-On the same LAN the worker is found automatically (mDNS). Across networks,
-either add a bootstrap peer to `network.bootstrap` in `~/.pumat/config.yaml`
-(DHT discovery), or point at the worker directly:
-
-```bash
-./bin/pumat submit examples/qe-si-scf/job.yaml --peer /ip4/<B-ip>/udp/4001/quic-v1/p2p/<B-peer-id>
-```
-
-Use `--detach` to close the laptop after the upload; the agent fetches the
-sealed result when it is back online (`pumat job list --pending`,
-`pumat job fetch <id>`).
-
-Inspect provenance:
-
-```bash
-./bin/pumat receipt verify <receipt-or-exec-id>
-./bin/pumat ledger verify
-ls ~/pumat/results/<exec-id>/{input,output,parsed,provenance}
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md). Run your own bootstrap/relay node
+with [deploy/bootstrap](deploy/bootstrap/README.md).
 
 ## Repository layout
 
 ```text
 cmd/pumat              CLI and agent
 cmd/pumat-qe-parser    QE parser, compiled to WASI and embedded in the agent
-internal/agent         node daemon: lease, transfer, execution, fetch, local API
-internal/{canonical,contentid,envelope,identity}  signing and identifiers
+internal/agent         node daemon: discovery, lease, transfer, execution, fetch, records, local API
+pkg/{canonical,contentid}              RFC 8785 JSON and content identifiers
+internal/{envelope,identity}           signed envelopes and node identity
 internal/{bundle,seal}                 chunked bundles and result sealing
 internal/{job,solver,solver/qe}        job schema, solver trust, QE adapter
 internal/{sandbox,store,protocol,pb}   container runtime, SQLite state, wire protocol
 internal/{record,indexer}              public records, reproduction, explorer
+internal/{parser,qeparse}              WASI parser host and the QE output parser
+internal/{config,capability}           node configuration, hardware detection
+internal/integration                   multi-node scenario tests
 proto/                 protobuf wire framing
+scripts/               installer, local e2e, vulnerability check
 deploy/                systemd unit, bootstrap/relay node setup
 solvers/quantum-espresso  solver image and manifest templates
 examples/              example jobs

@@ -694,6 +694,10 @@ Important:
 
 > The explorer database is an index, not the authoritative ledger.
 
+Implementation note: the reference explorer is a mode of the Go agent
+(`indexer.enabled`) with server-rendered pages and SQLite instead of Next.js
+and PostgreSQL; the index is rebuilt from mirrored records (ADR-0014).
+
 ---
 
 # 8. Identity Model
@@ -767,6 +771,8 @@ Bootstrap peers:
 - only help new nodes enter the overlay.
 
 Bootstrap peer addresses are included in the client release but configurable.
+The default list starts with `/dnsaddr/pfcn.pumat.org`, which expands from
+DNS TXT records at startup; `/dns4` and `/ip4` entries follow as fallbacks.
 
 Community-operated bootstrap peers must be supported.
 
@@ -810,6 +816,12 @@ Relay operators should be able to configure:
 - allow/deny network namespaces.
 
 Large scientific input/output transfer should prefer direct connections. Relays should not become permanent bulk-data transit when direct connectivity is possible.
+
+Implementation note: only control messages (capability, lease, announcements)
+may use a relayed connection. Before a data stream (input, result, record)
+the agent waits up to 20 s for hole punching (DCUtR) to produce a direct
+connection and otherwise fails with an explicit error. Cloud bootstrap/relay
+nodes behind 1:1 NAT set `network.announce` and `network.reachability: public`.
 
 ---
 
@@ -3034,6 +3046,14 @@ Not required:
 - central storage of private job data.
 
 Goal: network execution remains functional if explorer is down.
+
+Implementation note (v0.1.0-alpha.3): the project currently operates one
+host, `pfcn.pumat.org` (AWS Lightsail, Singapore), that combines the
+bootstrap node, a bounded relay, and the explorer behind Caddy (HTTPS).
+Releases are GitHub Releases with Sigstore-signed checksums; the installer is
+served from the repository instead of `install.pumat.org`. Nodes find the
+bootstrap set through `/dnsaddr/pfcn.pumat.org` (DNS TXT), so servers can be
+added or replaced without a release (ADR-0013).
 
 ---
 

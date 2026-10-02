@@ -3,14 +3,16 @@
 Pumat 노드를 설치해서 **계산 자원을 기여**하거나 **계산을 맡기는** 데까지 15분 안에 끝내는 안내입니다.
 개념 소개는 [소개 슬라이드](https://chaeeundad.github.io/PFCN/slides/)를, 프로토콜 전체는 [스펙](architecture.md)을 보세요.
 
-> 상태: pre-alpha (`v0.1.0-alpha.2`). 기본 설정에 공개 부트스트랩·중계 노드가 들어 있어서 **다른 네트워크나 공유기(NAT) 뒤에 있는 노드끼리도 자동으로 서로를 찾고 직접 연결**합니다. 같은 LAN에서는 mDNS로 더 빨리 찾습니다.
+> 상태: pre-alpha (`v0.1.0-alpha.3`). 기본 설정에 공개 부트스트랩·중계 노드가 들어 있어서 **다른 네트워크나 공유기(NAT) 뒤에 있는 노드끼리도 자동으로 서로를 찾고 직접 연결**합니다. 같은 LAN에서는 mDNS로 더 빨리 찾습니다.
 
 ## 0. 역할 고르기
 
 | 역할 | 하는 일 | 필요한 것 |
 |---|---|---|
-| **워커** (기여자) | 남는 CPU로 다른 사람의 계산을 실행 | Linux, Docker 또는 Podman |
+| **워커** (기여자) | 남는 CPU로 다른 사람의 계산을 실행 | Linux + Docker 또는 Podman (macOS는 Docker Desktop·OrbStack으로도 동작) |
 | **요청자** | 계산을 맡기고 결과를 받음 | Linux 또는 macOS (컨테이너 불필요) |
+
+Windows는 아직 지원하지 않습니다.
 
 한 컴퓨터가 두 역할을 함께 해도 됩니다.
 
@@ -195,11 +197,13 @@ pumat reproduce <record-id>           # 원래 워커를 제외한 다른 워커
 pumat record verify ~/.pumat/records/<hex>   # 받은 레코드를 오프라인 검증
 ```
 
+공개 레코드는 네트워크 공지로 퍼지고, 공개 익스플로러 **https://pfcn.pumat.org** 에서 몇 초 안에 검색됩니다. 익스플로러가 레코드를 미러링하므로 내 노드가 꺼져도 계속 다운로드할 수 있습니다.
+
 재현 결과는 `REPRODUCED_EXACT`, `REPRODUCED_WITHIN_TOLERANCE`, `DIVERGENT` 중 하나로 서명됩니다.
 
-### 익스플로러 띄우기
+### 내 익스플로러 띄우기 (선택)
 
-`~/.pumat/config.yaml`에서 다음과 같이 설정하고 에이전트를 재시작합니다.
+공개 익스플로러와 같은 것을 직접 운영하려면 `~/.pumat/config.yaml`에서 다음과 같이 설정하고 에이전트를 재시작합니다.
 
 ```yaml
 indexer:
@@ -211,7 +215,10 @@ indexer:
 
 ## 7. 부트스트랩 노드
 
-기본 설정에는 프로젝트가 운영하는 부트스트랩·중계 노드가 들어 있습니다(`network.bootstrap`, `network.staticRelays`). 기관이나 커뮤니티가 자체 부트스트랩을 운영하면 목록에 추가하거나 바꿔 쓸 수 있습니다.
+기본 설정에는 프로젝트가 운영하는 부트스트랩·중계 노드 `pfcn.pumat.org`가 들어 있습니다(`network.bootstrap`, `network.staticRelays`).
+
+- 첫 항목 `/dnsaddr/pfcn.pumat.org`는 시작할 때 DNS에서 최신 부트스트랩 목록을 읽습니다. 서버가 바뀌어도 설정을 고칠 필요가 없습니다.
+- 기관이나 커뮤니티가 자체 부트스트랩을 운영하면 목록에 추가하거나 바꿔 쓸 수 있습니다.
 
 운영 방법은 [`deploy/bootstrap/README.md`](https://github.com/chaeeundad/PFCN/blob/main/deploy/bootstrap/README.md)에 있습니다. 같은 바이너리를 `dhtMode: server`, `relayService: true`, `reachability: public`으로 실행하면 됩니다.
 

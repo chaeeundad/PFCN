@@ -106,7 +106,7 @@ body.idle #nav,body.idle #hint{opacity:0;pointer-events:none}
     <circle cx="238" cy="190" r="20" fill="#8fd1b8"/><circle cx="150" cy="150" r="13" fill="#eef2ee"/>
     <circle cx="150" cy="255" r="8" fill="#2f5a4d"/><line x1="150" y1="150" x2="150" y2="247" stroke="#2f5a4d" stroke-width="2" stroke-dasharray="4 6"/>
   </svg>
-  <div class="footer"><span>github.com/chaeeundad/PFCN</span><span>2026 · pre-alpha</span></div>
+  <div class="footer"><span>github.com/chaeeundad/PFCN</span><span>2026 · pre-alpha v0.1.0-alpha.3</span></div>
 </section>
 
 <!-- 2. Problem -->
@@ -303,17 +303,17 @@ Total energy:  -310.569142 eV</code>
   <div class="kicker">지금 동작하는 것</div>
   <h2 style="margin-bottom:22px">실제 QE 계산으로 처음부터 끝까지 검증</h2>
   <div class="grid4 compact" style="margin-bottom:18px">
-    <div class="card"><div class="big-num">4s</div><p style="margin-top:10px">Si SCF 제출 → 결과 회수까지 (2 MPI)</p></div>
+    <div class="card"><div class="big-num">4s</div><p style="margin-top:10px">Si SCF 제출 → 결과 회수 (같은 머신, 2 MPI)</p></div>
     <div class="card"><div class="big-num">2</div><p style="margin-top:10px">플랫폼 실측: linux/arm64 · linux/amd64</p></div>
-    <div class="card"><div class="big-num">0</div><p style="margin-top:10px">완료 후 워커에 남는 작업 데이터</p></div>
+    <div class="card"><div class="big-num">12.8s</div><p style="margin-top:10px">싱가포르 요청자 → 한국 NAT 뒤 워커, 인터넷 구간</p></div>
     <div class="card"><div class="big-num" style="color:var(--clay)">ΔE 0</div><p style="margin-top:10px">다른 워커 재현 결과 차이</p></div>
   </div>
   <table class="status">
     <tr><td>Phase 0–1</td><td>서명 체계 · 두 노드 실행 · 봉인 결과 · 영수증</td><td><div class="bar"><span style="width:100%"></span></div></td><td><span class="pill">완료</span></td></tr>
-    <tr><td>Phase 2</td><td>중앙 스케줄러 없는 탐색 (DHT · mDNS · NAT 통과)</td><td><div class="bar"><span style="width:100%"></span></div></td><td><span class="pill">완료</span></td></tr>
+    <tr><td>Phase 2</td><td>중앙 스케줄러 없는 탐색 · 공개 부트스트랩 · hole punching</td><td><div class="bar"><span style="width:100%"></span></div></td><td><span class="pill">완료</span></td></tr>
     <tr><td>Phase 3</td><td>폐기 목록 · 퍼징 · 디스크 한도 · 취약점 검사</td><td><div class="bar"><span style="width:80%"></span></div></td><td><span class="pill clay">진행</span></td></tr>
-    <tr><td>Phase 4</td><td>공개 레코드 · 재현 · 익스플로러</td><td><div class="bar"><span style="width:100%"></span></div></td><td><span class="pill">완료</span></td></tr>
-    <tr><td>Phase 5</td><td>서명 릴리스 · 설치 스크립트 · 공개 알파 (10–30 노드)</td><td><div class="bar"><span style="width:60%"></span></div></td><td><span class="pill clay">진행</span></td></tr>
+    <tr><td>Phase 4</td><td>공개 레코드 · 재현 · 익스플로러 (pfcn.pumat.org)</td><td><div class="bar"><span style="width:100%"></span></div></td><td><span class="pill">완료</span></td></tr>
+    <tr><td>Phase 5</td><td>서명 릴리스 · 설치 · 부트스트랩 · 공개 익스플로러 · 알파 노드 모집</td><td><div class="bar"><span style="width:80%"></span></div></td><td><span class="pill clay">진행</span></td></tr>
   </table>
   <div class="footer"><span>Pumat</span><span>10</span></div>
 </section>
@@ -325,10 +325,10 @@ Total energy:  -310.569142 eV</code>
   <div class="grid3 grow" style="align-content:center;grid-template-columns:1.3fr 1fr 1fr">
     <div class="card">
       <div class="icon i-green">▣</div><h3>계산 자원 기여</h3>
-      <code class="term" style="font-size:15px;padding:16px 18px;margin-top:12px">pumat init
+      <code class="term" style="font-size:15px;padding:16px 18px;margin-top:12px">curl -fsSL …/install.sh | sh
+pumat init
 pumat solver add manifest.signed.json
-pumat agent &amp;
-pumat on</code>
+pumat agent &amp; pumat on</code>
     </div>
     <div class="card">
       <div class="icon i-clay">▶</div><h3>계산 맡기기</h3>
@@ -342,7 +342,7 @@ pumat reproduce &lt;record&gt;</code>
       <p class="mono" style="font-size:15px;margin-top:12px">deploy/bootstrap · CONTRIBUTING.md</p>
     </div>
   </div>
-  <p class="muted" style="font-size:19px;margin-bottom:28px">바로 시작하기: <span class="mono">github.com/chaeeundad/PFCN/blob/main/docs/QUICKSTART.md</span></p>
+  <p class="muted" style="font-size:19px;margin-bottom:28px">익스플로러 <span class="mono">pfcn.pumat.org</span> · 바로 시작하기 <span class="mono">chaeeundad.github.io/PFCN/QUICKSTART</span></p>
   <div class="footer"><span>Pumat</span><span>11</span></div>
 </section>
 
@@ -352,7 +352,7 @@ pumat reproduce &lt;record&gt;</code>
   <div class="grow" style="display:flex;flex-direction:column;justify-content:center">
     <h1 style="font-size:64px">값싼 분산 클라우드가 아니라,<br><span style="color:#8fd1b8">계산과 데이터가 함께 자라는<br>과학 공유지</span></h1>
     <p class="lead" style="margin-top:34px">중앙 스케줄러 없음 · 암호화폐 없음 · 임의 코드 실행 없음</p>
-    <p class="mono" style="margin-top:40px;font-size:22px;color:#e59a73">github.com/chaeeundad/PFCN</p>
+    <p class="mono" style="margin-top:40px;font-size:22px;color:#e59a73">github.com/chaeeundad/PFCN · pfcn.pumat.org</p>
   </div>
   <div class="footer"><span>Share idle compute. Run science. Share the results.</span><span>12</span></div>
 </section>

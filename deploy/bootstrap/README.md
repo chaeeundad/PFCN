@@ -51,5 +51,34 @@ Relay limits use go-libp2p's Circuit Relay v2 defaults (bounded reservations,
 duration and bytes per relayed connection), so relays carry signalling and
 small transfers; bulk data should use direct connections (§9.4).
 
-To also run the public explorer on this node, set `indexer.enabled: true`
-and put a TLS reverse proxy (e.g. Caddy) in front of `indexer.http`.
+## Public explorer on the same node
+
+This is how `https://pfcn.pumat.org` runs. Open TCP 80/443, point a DNS name
+at the server, then:
+
+```bash
+# pumat: enable the indexer on localhost
+sudo sed -i 's/^  enabled: false$/  enabled: true/; s#^  http: .*#  http: 127.0.0.1:8080#' /var/lib/pumat/config.yaml
+sudo systemctl restart pumat-agent
+
+# Caddy (automatic Let's Encrypt certificates)
+sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt-get update && sudo apt-get install -y caddy
+```
+
+`/etc/caddy/Caddyfile`:
+
+```text
+explorer.example.org {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy 127.0.0.1:8080
+}
+```
+
+Then `sudo systemctl reload caddy`. The node indexes records announced on the
+network, verifies them, and keeps a mirror copy, so records stay downloadable
+when their publisher is offline. The index can be deleted at any time; it is
+rebuilt from the mirrored records.

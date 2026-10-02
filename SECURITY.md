@@ -35,6 +35,14 @@ Currently accepted: GO-2024-3218 (Kademlia DHT provider censorship), which
 affects only discovery availability; capability checks, mDNS, `--peer` and
 bootstrap peers remain.
 
+## Infrastructure
+
+Bootstrap and relay nodes (currently `pfcn.pumat.org`, found through DNS
+`/dnsaddr`) only help peers connect. They never see job data, authorize
+execution, or sign anything other nodes rely on; a compromised bootstrap or
+DNS record can affect availability, not integrity (ADR-0013). Relays carry
+only control messages; data moves over direct connections.
+
 ## Trust roots
 
 The project solver signing key (signer ID

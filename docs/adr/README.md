@@ -14,3 +14,5 @@ Changes to the decisions frozen in spec §59 require an ADR.
 - [ADR-0010](0010-requester-side-wasm-parser.md): Parsers run on the requester as WASI modules (Accepted)
 - [ADR-0011](0011-sealed-result-construction.md): Result sealing construction (Accepted)
 - [ADR-0012](0012-wire-and-local-api.md): Wire framing and local API (Accepted)
+- [ADR-0013](0013-bootstrap-dnsaddr-and-relay-policy.md): DNS-based bootstrap set and relay policy (Accepted)
+- [ADR-0014](0014-explorer-in-agent-sqlite.md): Explorer as an agent mode with SQLite (Accepted)
