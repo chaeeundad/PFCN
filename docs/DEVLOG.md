@@ -118,7 +118,7 @@ macOS 개발 머신에서 실제 QE 컨테이너로 두 노드 E2E를 통과함 
 | # | 항목 | 이유 |
 |---|---|---|
 | U6 | 공개 부트스트랩/relay 노드 | 1호기 운영 중 (Lightsail 싱가포르, `pfcn.pumat.org`). 2호기는 다른 리전에 추가 예정 |
-| U8 | Route 53에 `_dnsaddr.pfcn.pumat.org` TXT 레코드 추가 | 부트스트랩 목록을 DNS로 관리 (deploy/bootstrap/README.md) | 대기 |
+| U8 | Route 53에 `_dnsaddr.pfcn.pumat.org` TXT 레코드 추가 | 부트스트랩 목록을 DNS로 관리 | 해결 (2026-10-02) |
 
 ---
 
@@ -261,3 +261,17 @@ A(요청자+익스플로러), B·C(워커):
 - 서버 announce에 `/dns4/pfcn.pumat.org` 추가. 도메인 항목만 남긴 새 노드가 부트스트랩에 직접 연결되는 것 확인
 - 서버 신원 키 백업: `secrets/bootstrap-1.node.key` (git 제외, Peer ID 일치 확인). 서버를 다시 만들어도 같은 Peer ID 유지 가능
 - **사용자 조치 U8**: Route 53에 `_dnsaddr.pfcn.pumat.org` TXT 레코드 추가 (값은 deploy/bootstrap/README.md). 추가 전에도 `/dns4` 항목으로 동작함
+
+---
+
+## 2026-10-02 — 공개 익스플로러 https://pfcn.pumat.org
+
+- `_dnsaddr.pfcn.pumat.org` TXT 확인: 처음엔 `_dnsaddr.pumat.org`에 한 줄만 들어가 있었음 → 사용자가 수정, Route 53·1.1.1.1·9.9.9.9에서 두 줄 확인 (8.8.8.8은 부정 캐시 최대 15분)
+- 부트스트랩 서버에 익스플로러 배포
+  - pumat 에이전트 `indexer.enabled: true` (127.0.0.1:8080)
+  - Caddy 2.11 리버스 프록시, Let's Encrypt 자동 인증서, HSTS, http→https 308
+- 첫 실제 공개 레코드
+  - 기본 설정(도메인 부트스트랩)의 Mac 워커·요청자로 Si SCF 계산 후 `pumat job publish`
+  - GossipSub 공지만으로 서버 인덱서가 받아 검증·미러링·색인 (`publication.indexers` 설정 없이)
+  - https://pfcn.pumat.org/record/pumat:record:blake3:1bee32ae81029565100423937a55d7788fc8b8467b0b9af02a60d0dc65f71b49
+  - 서버가 레코드를 미러링하므로 게시한 노드가 꺼져도 계속 다운로드 가능

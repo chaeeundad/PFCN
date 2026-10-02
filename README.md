@@ -15,6 +15,7 @@ nodes do not execute arbitrary user code.
 > Pumat (품앗) comes from 품앗이, the Korean tradition of reciprocal work.
 > The protocol is the Pumat Federated Computing Network (PFCN).
 
+- Public explorer: [pfcn.pumat.org](https://pfcn.pumat.org)
 - Quick start (Korean): [docs/QUICKSTART.md](docs/QUICKSTART.md)
 - Introduction slides (Korean): [chaeeundad.github.io/PFCN/slides](https://chaeeundad.github.io/PFCN/slides/) ([source](docs/slides/index.html))
 - Specification: [docs/architecture.md](docs/architecture.md)
